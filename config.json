@@ -1,5 +1,0 @@
-{
-  "api_key": "sk-892459a8b8d64ba19a6d91ef5169632d",
-  "api_endpoint": "https://ollama.tgwskk.cn:11436/api/chat/completions",
-  "model": "hoangquan456/qwen3-nothink:14b"
-}
