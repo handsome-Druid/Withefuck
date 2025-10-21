@@ -16,28 +16,13 @@ git clone https://github.com/handsome-Druid/Withefuck.git
 cd Withefuck
 chmod +x ./install.sh
 ./install.sh
-wtf --config
 ```
 
 ## Usage
 
-### First-time setup
-
-```bash
-wtf --config
-```
-
-Configure your API key, API endpoint, language (Chinese/English), and how many recent commands to include.
-
-### Demo
-
-Place your demo GIFs under the `docs/` directory with these filenames:
-
-- `docs/demo-quick-fix.gif` (single-shot fix)
-- `docs/demo-iterative-fix.gif` (iterative fix)
-
-They will be rendered automatically on GitHub:
-
+### Single-turn fix
 ![Quick Fix](./docs/demo-quick-fix.gif)
+
+### Multi-turn fix
 
 ![Iterative Fix](./docs/demo-iterative-fix.gif)
