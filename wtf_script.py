@@ -17,7 +17,7 @@ def is_prompt(line, prompt_re, generic_re):
 
 def is_wtf(cmd):
     lower = cmd.lower()
-    return any(x in lower for x in ['wtf.py', './wtf.py', ' python wtf.py', 'python3 wtf.py','wtf','wtf_script.py'])
+    return any(x in lower for x in ['wtf.py', './wtf.py', ' python wtf.py', 'python3 wtf.py','wtf','wtf_script.py','withefuck','withefuck --suggest'])
 
 def append_result(results, current_cmd, current_output):
     if current_cmd is not None:

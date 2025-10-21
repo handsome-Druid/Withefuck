@@ -3,6 +3,8 @@ import os
 import sys
 import subprocess
 import json
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'vendor'))
 import requests
 import argparse
 from typing import Optional, Tuple, Dict
@@ -11,6 +13,30 @@ from typing import Optional, Tuple, Dict
 import pathlib
 PROJECT_DIR = pathlib.Path(__file__).resolve().parent
 WTF_CONFIG_FILENAME = "wtf.json"
+
+
+def _wtf_find_config_path_for_read() -> str:
+    """Return the first existing config path, searching in this order:
+    1. current working directory
+    2. project directory (where wtf.py lives)
+    3. XDG_CONFIG_HOME/withefuck/wtf.json
+    4. ~/.wtf.json
+    If none exist, return the project directory path (default location).
+    """
+    cwd_path = pathlib.Path.cwd() / WTF_CONFIG_FILENAME
+    proj_path = PROJECT_DIR / WTF_CONFIG_FILENAME
+    xdg_base = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", "")) if os.environ.get("XDG_CONFIG_HOME") else pathlib.Path.home() / ".config"
+    xdg_path = xdg_base / "withefuck" / WTF_CONFIG_FILENAME
+    home_path = pathlib.Path.home() / ("." + WTF_CONFIG_FILENAME)
+
+    for p in (cwd_path, proj_path, xdg_path, home_path):
+        try:
+            if p.exists():
+                return str(p)
+        except Exception:
+            # ignore inaccessible paths
+            pass
+    return str(proj_path)
 
 # Try to import parsing utilities from wtf_script.py. We import lazily inside the
 # method to avoid import-time side effects when running the config path.
@@ -51,6 +77,9 @@ def _wtf_prompt_field(key: str, desc: str, cfg: Dict) -> bool:
     if key == "history_count":
         cfg[key] = 3
         return True
+    if key == "temperature":
+        cfg[key] = 0.0
+        return True
     lang = _wtf_lang_of(cfg)
     print(f"{key} 是必填项！" if lang == "zh" else f"{key} is required!")
     return False
@@ -83,6 +112,7 @@ def _wtf_save_and_report(config_path: str, config: Dict) -> None:
         sys.exit(1)
 def update_config() -> None:
     """Interactive configuration for wtf.json"""
+    # Always write config to the project directory when running interactive config
     config_path = str(PROJECT_DIR / WTF_CONFIG_FILENAME)
 
     config, existed, load_err = _wtf_load_config(config_path)
@@ -90,13 +120,28 @@ def update_config() -> None:
     _wtf_notify_existing_config(config, existed)
 
     # Fields to prompt the user for.
-    fields = {
-        "api_key": "API Key",
-        "api_endpoint": "API Endpoint (e.g. https://api.openai.com/v1/chat/completions)",
-        "model": "Model name (e.g. gpt-4)",
-        "language": "Prompt language (en/zh)",
-        "history_count": "Number of previous commands to include in context (default 3)"
-    }
+    try:
+        lang = _wtf_lang_of(config)
+    except Exception:
+        lang = "en"
+    if lang == "zh":
+        fields = {
+            "api_key": "API 密钥",
+            "api_endpoint": "API 端点 (例如 https://api.openai.com/v1/chat/completions)",
+            "model": "模型名称 (例如 gpt-4)",
+            "language": "语言 (en/zh)",
+            "history_count": "包含在上下文中的前置命令数量 (少于 100)",
+            "temperature": "LLM 的采样温度 (0.0-1.0)"
+        }
+    else:
+        fields = {
+            "api_key": "API Key",
+            "api_endpoint": "API Endpoint (e.g. https://api.openai.com/v1/chat/completions)",
+            "model": "Model name (e.g. gpt-4)",
+            "language": "language (en/zh)",
+            "history_count": "Number of previous commands to include in context (less than 100)",
+            "temperature": "Sampling temperature for LLM (0.0-1.0)"
+        }
 
     for key, desc in fields.items():
         if not _wtf_prompt_field(key, desc, config):
@@ -105,7 +150,7 @@ def update_config() -> None:
     _wtf_save_and_report(config_path, config)
 
 class CommandFixer:
-    def __init__(self, api_key: str, api_endpoint: str, model: str, language: str = "en", history_count: int = 5):
+    def __init__(self, api_key: str, api_endpoint: str, model: str, language: str = "en", history_count: int = 5, temperature: float = 0.0):
         """Initialize the command fixer
         Args:
             api_key: LLM API key
@@ -118,6 +163,8 @@ class CommandFixer:
         self.model = model
         self.language = language
         self.history_count = int(history_count)
+        # temperature will default to 0 if not provided; keep as float
+        self.temperature = float(temperature)
     def get_last_command(self) -> Tuple[str, str]:
         """Get the last command and its output.
 
@@ -192,7 +239,8 @@ class CommandFixer:
             "model": self.model,
             "messages": [
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            "temperature": getattr(self, "temperature", 0.0)
         }
         # print("\n--- Payload to be sent to LLM API ---\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n--- End Payload ---\n")
         try:
@@ -241,16 +289,26 @@ def load_config(config_path: str) -> dict:
         print("请运行 'wtf --config' 重新配置" if lang == "zh" else "Please run 'wtf --config' to reconfigure", file=sys.stderr)
         sys.exit(1)
 
-def validate_config(config: dict) -> Tuple[str, str, str, str]:
+def validate_config(config: dict) -> Tuple[str, str, str, str, int, float]:
     api_key = config.get("api_key")
     api_endpoint = config.get("api_endpoint")
     model = config.get("model")
     language = config.get("language", "en")
     history_count = config.get("history_count", 5)
-    if not api_key or not api_endpoint or not model or not language or not history_count:
+    temperature = config.get("temperature", 0)
+    # coerce types
+    try:
+        history_count = int(history_count)
+    except Exception:
+        history_count = 5
+    try:
+        temperature = float(temperature)
+    except Exception:
+        temperature = 0.0
+    if not api_key or not api_endpoint or not model or not language:
         print("配置不完整，请运行 'wtf --config' 进行设置" if language == "zh" else "Incomplete configuration. Please run 'wtf --config' to set up.", file=sys.stderr)
         sys.exit(1)
-    return api_key, api_endpoint, model, language, history_count
+    return api_key, api_endpoint, model, language, history_count, temperature
 
 def run_fixer(fixer: CommandFixer, language: str) -> None:
     try:
@@ -275,17 +333,65 @@ def run_fixer(fixer: CommandFixer, language: str) -> None:
     except Exception as e:
         print(f"出错: {e}" if language == "zh" else f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+def _handle_suggest_mode():
+    config_path = _wtf_find_config_path_for_read()
+    cfg, existed, _ = _wtf_load_config(config_path)
+    if not existed or not cfg:
+        print("Conferror")
+        return
+    api_key = cfg.get("api_key")
+    api_endpoint = cfg.get("api_endpoint")
+    model = cfg.get("model")
+    language = cfg.get("language", "en")
+    history_count = cfg.get("history_count", 5)
+    temperature = cfg.get("temperature", 0)
+    try:
+        history_count = int(history_count)
+    except Exception:
+        history_count = 5
+    try:
+        temperature = float(temperature)
+    except Exception:
+        temperature = 0.0
+    if not api_key or not api_endpoint or not model or not language:
+        print(f"Conferror {language}")
+        return
+    fixer = CommandFixer(api_key, api_endpoint, model, language, history_count, temperature)
+    try:
+        last = fixer.get_last_command()
+    except Exception:
+        print(f"None {language}")
+        return
+    cmd = ""
+    if isinstance(last, (list, tuple)):
+        cmd = last[0] if last else ""
+    elif isinstance(last, str):
+        cmd = last
+    if not cmd:
+        print(f"None {language}")
+        return
+    fixed = fixer.get_fixed_command(cmd)
+    if not fixed:
+        print(f"None {language}")
+        return
+    print(f"{fixed} {language}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Command line fixer using LLM")
     parser.add_argument("--config", action="store_true", help="Configure wtf.json interactively")
+    parser.add_argument("--suggest", action="store_true", help="Only suggest the fixed command and language, do not execute")
     args = parser.parse_args()
     if args.config:
         update_config()
         return
-    config_path = str(PROJECT_DIR / WTF_CONFIG_FILENAME)
+    if args.suggest:
+        _handle_suggest_mode()
+        return
+    config_path = _wtf_find_config_path_for_read()
     config = load_config(config_path)
-    api_key, api_endpoint, model, language, history_count = validate_config(config)
-    fixer = CommandFixer(api_key, api_endpoint, model, language, history_count)
+    api_key, api_endpoint, model, language, history_count, temperature = validate_config(config)
+    fixer = CommandFixer(api_key, api_endpoint, model, language, history_count, temperature)
     run_fixer(fixer, language)
 
 if __name__ == "__main__":
