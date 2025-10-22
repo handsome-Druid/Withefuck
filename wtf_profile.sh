@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # This script sets up unique shell session logging and log rotation.
 # If sourced, continue only in interactive shells.
 if (return 0 2>/dev/null); then

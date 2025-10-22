@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 rm -rf /usr/local/bin/wtf
 rm -rf /usr/local/bin/wtf.script
