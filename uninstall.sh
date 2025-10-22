@@ -10,8 +10,15 @@ rm -rf ~/.wtf_profile.sh
 
 rm -rf ~/.shell_logs
 
-sed -i '/source \/root\/\.wtf\.sh/d' ~/.bashrc
-sed -i '/source \/root\/\.wtf_profile\.sh/d' ~/.bashrc
+
+for rcfile in ~/.bashrc ~/.zshrc ~/.ashrc; do
+    if [ -f "$rcfile" ]; then
+        sed -i "\|source $HOME/\.wtf\.sh|d" "$rcfile"
+        sed -i "\|source $HOME/\.wtf_profile\.sh|d" "$rcfile"
+        sed -i "\|\. $HOME/\.wtf\.sh|d" "$rcfile"
+        sed -i "\|\. $HOME/\.wtf_profile\.sh|d" "$rcfile"
+    fi
+done
 
 rm -rf /usr/local/bin/wtf.uninstall
 

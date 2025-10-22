@@ -1,20 +1,6 @@
 #!/usr/bin/env sh
 
-# If executed (not sourced), prefer sh but re-exec under bash or zsh if
-# available, in that order. When sourced, do not re-exec. Use
-# WTF_PROFILE_REEXEC to avoid infinite recursion.
-if (return 0 2>/dev/null); then
-    # being sourced -> do nothing
-    :
-else
-    if [ -z "${WTF_PROFILE_REEXEC:-}" ]; then
-        if command -v bash >/dev/null 2>&1; then
-            WTF_PROFILE_REEXEC=1 exec "$(command -v bash)" "$0" "$@"
-        elif command -v zsh >/dev/null 2>&1; then
-            WTF_PROFILE_REEXEC=1 exec "$(command -v zsh)" "$0" "$@"
-        fi
-    fi
-fi
+
 # This script sets up unique shell session logging and log rotation.
 # If sourced, continue only in interactive shells.
 if (return 0 2>/dev/null); then

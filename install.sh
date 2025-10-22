@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -e
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -26,15 +25,28 @@ ln -sf $pwd/wtf.py /usr/local/bin/wtf.py
 ln -sf $pwd/wtf_script.py /usr/local/bin/wtf_script.py
 ln -sf $pwd/uninstall.sh /usr/local/bin/uninstall.sh
 
-# Add sourcing to .bashrc
-if ! grep -q "wtf.sh" ~/.bashrc; then
-    echo "source $HOME/.wtf.sh" >> ~/.bashrc
-fi
+# Add sourcing to .bashrc, .zshrc, .ashrc if they exist
+for rcfile in ~/.bashrc ~/.zshrc ~/.ashrc; do
+    if [ -f "$rcfile" ]; then
+        # 对 ash 用 "."，对 bash/zsh 用 "source"
+        if ! echo "$rcfile" | grep -q "bashrc"; then
+            if echo "$rcfile" | grep -q "ashrc"; then
+                src_cmd="."
+            else
+                src_cmd="source"
+            fi
+        else 
+            src_cmd="source"
+        fi
 
-if ! grep -q "wtf_profile.sh" ~/.bashrc; then
-    echo "source $HOME/.wtf_profile.sh" >> ~/.bashrc
-fi
-
+        if ! grep -q "wtf.sh" "$rcfile"; then
+            echo "$src_cmd $HOME/.wtf.sh" >> "$rcfile"
+        fi
+        if ! grep -q "wtf_profile.sh" "$rcfile"; then
+            echo "$src_cmd $HOME/.wtf_profile.sh" >> "$rcfile"
+        fi
+    fi
+done
 
 # Source the scripts
 source $HOME/.wtf.sh
@@ -45,8 +57,11 @@ $pwd/wtf.py --config
 
 
 
-# Force script logging
-$HOME/.wtf_profile.sh
 
 
 echo "Withefuck has been installed successfully."
+echo "Please run:"
+echo
+echo ". ~/.wtf_profile.sh && . ~/.wtf.sh"
+echo
+echo "OR restart your terminal session to start logging."
