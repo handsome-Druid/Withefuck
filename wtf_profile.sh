@@ -1,4 +1,20 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
+
+# If executed (not sourced), prefer sh but re-exec under bash or zsh if
+# available, in that order. When sourced, do not re-exec. Use
+# WTF_PROFILE_REEXEC to avoid infinite recursion.
+if (return 0 2>/dev/null); then
+    # being sourced -> do nothing
+    :
+else
+    if [ -z "${WTF_PROFILE_REEXEC:-}" ]; then
+        if command -v bash >/dev/null 2>&1; then
+            WTF_PROFILE_REEXEC=1 exec "$(command -v bash)" "$0" "$@"
+        elif command -v zsh >/dev/null 2>&1; then
+            WTF_PROFILE_REEXEC=1 exec "$(command -v zsh)" "$0" "$@"
+        fi
+    fi
+fi
 # This script sets up unique shell session logging and log rotation.
 # If sourced, continue only in interactive shells.
 if (return 0 2>/dev/null); then
@@ -18,7 +34,9 @@ if [ -z "$UNDER_SCRIPT" ]; then
     if [ -z "$TTY_NAME" ]; then
         TTY_NAME="unknown"
     fi
-    TS="$LOGDIR/typescript-$(date +%Y%m%dT%H%M%S)-$RANDOM-$$-$TTY_NAME.log"
+    # Use $RANDOM when available; fall back to empty (keep $$ and timestamp
+    # to preserve uniqueness) so this works in shells without $RANDOM.
+    TS="$LOGDIR/typescript-$(date +%Y%m%dT%H%M%S)-${RANDOM:-}-$$-$TTY_NAME.log"
 
     # Export for other programs (e.g. script.py)
     export WTF_TYPESCRIPT="$TS"
@@ -26,8 +44,11 @@ if [ -z "$UNDER_SCRIPT" ]; then
     # Ensure file exists immediately
     touch "$TS" || true
 
-    # Delete logs older than 7 days
-    find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -delete 2>/dev/null || true
+    # Delete logs older than 7 days. Prefer -delete; if not supported, fall
+    # back to -exec rm -f {} + so BusyBox find still works.
+    if ! find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -delete 2>/dev/null; then
+        find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -exec rm -f {} + 2>/dev/null || true
+    fi
 
     # Start script and log to unique file. Prefer user's $SHELL to avoid forcing
     # bash when the user uses zsh. Use common flags for `script` (`-q -f -c`).
