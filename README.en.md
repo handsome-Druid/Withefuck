@@ -7,7 +7,7 @@ Inspired by [nvbn/thefuck](https://github.com/nvbn/thefuck), Withefuck leverages
 - Advantage 1: No manual rule maintenance
 - Advantage 2: Uses multiple recent commands to infer your real intent
 
-Only supports bash for now.
+Supports bash and zsh.
 
 ## Quick Start
 
