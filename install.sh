@@ -62,6 +62,6 @@ $pwd/wtf.py --config
 echo "Withefuck has been installed successfully."
 echo "Please run:"
 echo
-echo ". ~/.wtf_profile.sh && . ~/.wtf.sh"
+echo "      . ~/.wtf_profile.sh && . ~/.wtf.sh"
 echo
-echo "OR restart your terminal session to start logging."
+echo "or restart your terminal session to start logging."

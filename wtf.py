@@ -317,8 +317,8 @@ def run_fixer(fixer: CommandFixer, language: str) -> None:
         if not fixed_command:
             print("无法修正命令或不需要修正。" if language == "zh" else "Unable to fix the command or no fix needed.", file=sys.stderr)
             return
-        print(f"\n{fixed_command}")
-        input("\n回车执行，Ctrl+C取消..." if language == "zh" else "\nEnter to execute, Ctrl+C to cancel...")
+        print(f"\n{fixed_command} [enter/ctrl+c]")
+        input()
         result = subprocess.run(
             fixed_command,
             shell=True,

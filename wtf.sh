@@ -108,22 +108,15 @@ _wtf_define_shell_func() {
     esac
 
     # Print suggestion for visibility
-    echo "$cmd"
+    echo -n "$cmd "
 
-    if [ "$lang" = "zh" ]; then
-      prompt="回车执行，Ctrl+C取消..."
-    else
-      prompt="Enter to execute, Ctrl+C to cancel..."
-    fi
+
+  prompt="[\033[32menter\033[0m/\033[31mctrl+c\033[0m]"
+
 
     # Portable prompt/read: print prompt then read input. Works in bash and zsh.
-    printf "%s" "$prompt"
+    printf "%b" "$prompt"
     IFS= read -r reply || {
-      if [ "$lang" = "zh" ]; then
-        printf "\n操作已取消\n" >&2
-      else
-        printf "\nOperation cancelled\n" >&2
-      fi
       return 1
     }
 
@@ -131,11 +124,6 @@ _wtf_define_shell_func() {
       eval "$cmd"
       return $?
     else
-      if [ "$lang" = "zh" ]; then
-        >&2 echo "操作已取消"
-      else
-        >&2 echo "Operation cancelled"
-      fi
       return 0
     fi
   }
