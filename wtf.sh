@@ -49,13 +49,13 @@ _wtf_define_shell_func() {
           echo "Withefuck - Command line tool to fix your previous console command."
           echo
           echo "Usage:"
-          echo "  wtf               # Suggest fix for last command"
+          echo "  wtf                Suggest fix for last command"
           echo
           echo "Options:"
-          echo "  --config          # Configure Withefuck"
-          echo "  --logs            # View shell logs"
-          echo "  --uninstall       # Uninstall Withefuck"
-          echo "  -h, --help        # Show this help message"
+          echo "  --config           Configure Withefuck"
+          echo "  --logs             View shell logs"
+          echo "  --uninstall        Uninstall Withefuck"
+          echo "  -h, --help         Show this help message"
           return 0
         fi
         echo "Unknown argument: $a"
@@ -68,7 +68,7 @@ _wtf_define_shell_func() {
       chmod +x "${SCRIPT_DIR}/wtf.py" || true
     fi
 
-    # Call the wrapper to get suggestion (format: <cmd> <lang>)
+    # Call the wrapper to get suggestion (format: <cmd>)
   raw_out="$("${SCRIPT_DIR}/wtf.py" --suggest 2>/dev/null || true)"
   out="$(printf '%s' "$raw_out" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
@@ -77,32 +77,16 @@ _wtf_define_shell_func() {
       return 1
     fi
 
-    lang="en"
-    last_token=$(printf '%s' "$out" | awk '{print $NF}')
-    if [ "$last_token" = "zh" ] || [ "$last_token" = "en" ]; then
-      lang="$last_token"
-      # Use portable sed (basic regex) instead of -E for better compatibility
-      cmd=$(printf '%s' "$out" | sed 's/[[:space:]]\{1,\}\(zh\|en\)$//')
-    else
-      cmd="$out"
-    fi
+    cmd="$out"
 
     if [ "$cmd" = "Conferror" ]; then
-      if [ "$lang" = "zh" ]; then
-        >&2 echo "配置不完整，请运行 'wtf --config' 进行设置"
-      else
-        >&2 echo "Incomplete configuration. Please run 'wtf --config' to set up."
-      fi
+      >&2 echo "Incomplete configuration. Please run 'wtf --config' to set up."
       return 1
     fi
 
     case "$cmd" in
       None|None\ *)
-        if [ "$lang" = "zh" ]; then
-          >&2 echo "无法修正命令或不需要修正。"
-        else
-          >&2 echo "Unable to fix the command or no fix needed."
-        fi
+        >&2 echo "Unable to fix the command or no fix needed."
         return 0
         ;;
     esac
@@ -111,11 +95,19 @@ _wtf_define_shell_func() {
     echo -n "$cmd "
 
 
-  prompt="[\033[32menter\033[0m/\033[31mctrl+c\033[0m]"
+      # Portable colored prompt (safe for zsh/bash)
+    if [ -z "${WTF_NO_COLOR:-}" ] && [ -z "${NO_COLOR:-}" ] && [ -t 1 ]; then
+      # Use literal ANSI codes safely
+      _green='\033[32m'
+      _red='\033[31m'
+      _reset='\033[0m'
+      _prompt="[${_green}enter${_reset}/${_red}ctrl+c${_reset}] "
+    else
+      _prompt="[enter/ctrl+c] "
+    fi
 
-
-    # Portable prompt/read: print prompt then read input. Works in bash and zsh.
-    printf "%b" "$prompt"
+    # Safe echo (no tput)
+    echo -ne "$_prompt" 1>&2
     IFS= read -r reply || {
       return 1
     }

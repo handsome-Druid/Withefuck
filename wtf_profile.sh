@@ -35,7 +35,7 @@ if [ -z "$UNDER_SCRIPT" ]; then
 
     # Start script and log to unique file. Prefer user's $SHELL to avoid forcing
     # bash when the user uses zsh. Use common flags for `script` (`-q -f -c`).
-    USER_SHELL="${SHELL:-$(command -v bash || echo /bin/sh)}"
+    USER_SHELL="$(ps -p $$ -o comm=)"
     # Ensure `script` exists. Don't try to run it here (that would block);
     # if missing, bail out (return when sourced, exit when executed).
     if ! command -v script >/dev/null 2>&1; then
