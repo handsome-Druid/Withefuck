@@ -26,6 +26,10 @@ unset -f _detect_script_path
     SCRIPT_DIR="/usr/local/bin"
   fi
 
+  if echo $0 | grep -q "dash"; then
+    SCRIPT_DIR="/usr/local/bin"
+  fi
+
 # Define shell integration function (available when this file is sourced).
 _wtf_define_shell_func() {
   wtf() {
@@ -107,7 +111,7 @@ _wtf_define_shell_func() {
     fi
 
     # Safe echo (no tput)
-    echo -ne "$_prompt" 1>&2
+    echo "$_prompt" 1>&2
     IFS= read -r reply || {
       return 1
     }

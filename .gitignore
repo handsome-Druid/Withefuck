@@ -213,3 +213,5 @@ __marimo__/
 wtf.json
 wtf.json.bak
 
+# bak
+*.bak
