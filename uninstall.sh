@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
-rm -rf /usr/local/bin/wtf
-rm -rf /usr/local/bin/wtf.script
+rm -rf /usr/local/bin/wtf.py
+rm -rf /usr/local/bin/wtf_script.py
 rm -rf /usr/local/bin/wtf.json
+rm -rf /usr/local/bin/uninstall.sh
 rm -rf ~/.wtf.sh
 rm -rf /usr/local/bin/withefuck
 rm -rf ~/.wtf_profile.sh

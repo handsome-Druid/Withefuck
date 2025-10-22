@@ -22,9 +22,9 @@ chmod +x $pwd/uninstall.sh
 
 
 #Create symlinks in /usr/local/bin for ash
-ln -sf $pwd/wtf.py /usr/local/bin/wtf
-ln -sf $pwd/wtf_script.py /usr/local/bin/wtf.script
-ln -sf $pwd/uninstall.sh /usr/local/bin/wtf.uninstall
+ln -sf $pwd/wtf.py /usr/local/bin/wtf.py
+ln -sf $pwd/wtf_script.py /usr/local/bin/wtf_script.py
+ln -sf $pwd/uninstall.sh /usr/local/bin/uninstall.sh
 
 # Add sourcing to .bashrc
 if ! grep -q "wtf.sh" ~/.bashrc; then
