@@ -2,7 +2,6 @@
 import re
 from pathlib import Path
 import pathlib
-import json
 PROJECT_DIR = pathlib.Path(__file__).resolve().parent
 WTF_CONFIG_FILENAME = "wtf.json"
 from wtf import _wtf_load_config
@@ -17,6 +16,22 @@ OSC_RE = re.compile(r"\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)")
 # Other single-char controls that pollute logs
 CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
+# ISO8601-like timestamp used by the prompt hooks
+ISO_TS = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
+
+def _get_timestamp_regexes():
+    """
+    Return regexes that match timestamp divider lines after clean_text().
+    Supported forms:
+    - bash: "----- <ISO> -----"
+    - zsh/powerline: " <ISO> " or "<ISO>  "
+    """
+    # bash ASCII divider
+    bash_ts = re.compile(rf"^-+\s+{ISO_TS}\s+-+$")
+    # zsh flexible: optional rounded ( ... ) or right arrow () around ISO ts
+    zsh_ts = re.compile(rf"^\s*(?:\s*)?{ISO_TS}(?:\s*|\s*)?\s*$")
+    return [zsh_ts, bash_ts]
+
 def _strip_backspaces(s: str) -> str:
     # Normalize sequences like "l\bls" -> "ls"
     out = []
@@ -29,7 +44,7 @@ def _strip_backspaces(s: str) -> str:
     return ''.join(out)
 
 def clean_text(text: str) -> str:
-    # Remove CSI/OSC and other control sequences, normalize backspaces
+    # Strip CSI/OSC control sequences; normalize backspaces and CRs
     text = CSI_RE.sub('', text)
     text = OSC_RE.sub('', text)
     # Normalize carriage returns: preserve logical line breaks instead of merging lines
@@ -40,9 +55,6 @@ def clean_text(text: str) -> str:
     text = _strip_backspaces(text)
     text = CTRL_RE.sub('', text)
     return text.strip()
-
-def is_prompt(line, prompt_re, generic_re):
-    return prompt_re.match(line) or generic_re.match(line)
 
 def is_wtf(cmd):
     if cmd is None:
@@ -55,112 +67,98 @@ def append_result(results, current_cmd, current_output):
     if current_cmd is not None:
         results.append((current_cmd, "\n".join(current_output).strip()))
 
-def parse_lines(lines, prompt_re, generic_re, zsh_re=None):
-    results = []
-    current_cmd = None
-    current_output = []
-    for line in lines:
-        # Prefer zsh/p10k rule (captures content after the last terminator)
-        match = None
-        if zsh_re:
-            match = zsh_re.match(line)
-        if not match:
-            match = is_prompt(line, prompt_re, generic_re)
-        if match:
-            candidate = (match.group(1) or '').strip()
-            # Remove possible keypad toggles residues if any remain
-            candidate = candidate.strip('=>')
-            # Only start a new command when there is an actual candidate
-            if candidate:
-                append_result(results, current_cmd, current_output)
-                current_cmd = candidate
-                current_output = []
-            else:
-                # Likely a prompt-only line or an output line falsely matched by generic pattern
-                # If we're collecting output for a command, keep the line as output
-                if current_cmd is not None:
-                    current_output.append(line)
-                # Otherwise, ignore and continue without cutting a block
-                continue
-        elif current_cmd is not None:
-            current_output.append(line)
-    append_result(results, current_cmd, current_output)
-    return results
-
-def merge_wtf_commands(filtered, out):
-    if filtered:
-        prev_cmd, prev_out = filtered[-1]
-        prev_out = f"{prev_out}\n{out}" if prev_out else out
-        filtered[-1] = (prev_cmd, prev_out)
-    else:
-        filtered.append(("", out))
-
-def filter_wtf_commands(results):
-    filtered = []
-    for cmd, out in results:
-        if is_wtf(cmd):
-            s = (cmd or '').strip().lower()
-            # Merge only plain 'wtf' invocations into previous command
-            if s == 'wtf':
-                merge_wtf_commands(filtered, out)
-                continue
-            # Drop 'wtf --logs' entirely (don't merge, don't keep)
-            if s == 'wtf --logs':
-                continue
-            # For any other matches (future-proof), merge by default
-            merge_wtf_commands(filtered, out)
-            continue
-        filtered.append((cmd, out))
-    return filtered
-
-def extract_commands(text: str):
+def _extract_blocks_by_timestamps(lines):
     """
-    Parse bash/zsh script logs to extract commands and their outputs.
-    兼容常见 zsh/powerlevel10k 提示符，包括：➜、❯、%、→、±、»、›、>、#、$、以及 Powerline 符号如 。
+    Split the log by timestamp divider lines (dividers excluded).
+    Return blocks from oldest to newest (each is List[str]).
+    Only keep content strictly between adjacent timestamp lines.
+    """
+    ts_res = _get_timestamp_regexes()
+    ts_idx = [i for i, ln in enumerate(lines) if any(r.match(ln) for r in ts_res)]
+    blocks = []
+    if len(ts_idx) < 2:
+        return blocks
+    for a, b in zip(ts_idx[:-1], ts_idx[1:]):
+        seg = lines[a + 1:b]
+        blocks.append(seg)
+    return blocks
 
-    解析策略：
-    - 使用“最后一个提示符结束符”后的内容作为命令（避免多段彩色/图标提示符干扰）。
-    - 允许多行提示符（命令常出现在最后一行，前缀为上述结束符之一）。
-    - 过滤空命令；与 wtf 自身相关的命令会被合并到前一个命令的输出中。
+def _block_to_cmd_out(block_lines):
+    """
+    Convert one block to (cmd, out).
+    - cmd: first non-empty line (prompt kept as-is)
+    - out: remaining lines joined and stripped
+    Return None if no non-empty line exists.
+    """
+    if not block_lines:
+        return None
+    # 找第一条非空行作为命令
+    cmd_line_idx = None
+    for i, ln in enumerate(block_lines):
+        if ln.strip():
+            cmd_line_idx = i
+            break
+    if cmd_line_idx is None:
+        return None
+    cmd = block_lines[cmd_line_idx]
+    out = "\n".join(block_lines[cmd_line_idx + 1:]).strip()
+    return (cmd, out)
+
+def extract_last_command_simple(text: str):
+    """
+    Minimal extraction: take the content between the last two timestamp lines.
+    cmd = first non-empty line in that range; out = the rest.
+    Return None if fewer than two timestamp lines exist.
     """
     lines = text.splitlines()
-    # 传统 bash/root 风格（带 conda 环境与路径）的提示符：(... ) user@host:path# <cmd>
-    prompt_re = re.compile(r'^\([^)]*\)\s*\S+@[^:]+:[^#]+[#\$]\s*(.*)$')
+    blocks = _extract_blocks_by_timestamps(lines)
+    if not blocks:
+        return None
+    last_block = blocks[-1]
+    return _block_to_cmd_out(last_block)
 
-    # 常见“提示符结束符”集合（取最后一次出现作为命令起点）
-    # 包含：# $ % ❯ ➜ → λ ± » › ⋗ ᐅ ⟩ ⟫ ▶ ▷ ‣ ⮞ 以及 Powerline 分隔符 
-    prompt_end_chars = '#$%❯➜→λ±»›⋗ᐅ⟩⟫▶▷‣⮞>'
-    esc_end = re.escape(prompt_end_chars)
+def extract_commands_timestamp_only(text: str):
+    """
+    Extract all (cmd, out) blocks using only timestamp dividers. Oldest to newest.
+    cmd = first non-empty line (prompt kept); out = remaining lines (stripped).
+    Empty blocks are dropped. No special filtering.
+    """
+    lines = text.splitlines()
+    blocks = _extract_blocks_by_timestamps(lines)
+    pairs = []
+    for blk in blocks:
+        item = _block_to_cmd_out(blk)
+        if item is not None:
+            pairs.append(item)
+    return pairs
 
-    # 通用 zsh/p10k 匹配：抓取“行内最后一个提示符结束符”后的全部内容
-    # 例：⚡ user@host  /path   main ±  ls
-    #                              ^^^^^^^^ 最后一个结束符（）之后捕获到 ls
-    zsh_re = re.compile(rf'^.*[{esc_end}]\s+(.+)$')
+def _filter_wtf_commands_inline(results):
+    """Filter/merge 'wtf' and 'wtf --logs' without relying on global order."""
+    def _tail_wtf(cmd_line: str):
+        """匹配行尾部的 'wtf' 或 'wtf --logs'。忽略前导提示符，只看尾部命令。"""
+        if not cmd_line:
+            return None
+        m = re.search(r"(wtf(?:\s+--logs)?)\s*$", cmd_line, re.IGNORECASE)
+        return m.group(1).lower() if m else None
 
-    # 保守通用匹配：<任意非结束符> + <结束符其一> + <命令>
-    # 保守通用匹配：<任意非结束符> + <结束符其一> + <命令>
-    # 额外规则：避免把以可选空白后紧跟 # 的行（如脚本注释、"    # note"）当成提示符
-    generic_re = re.compile(rf'^(?!\s*#)[^{esc_end}]+[{esc_end}]\s*(.*)$')
-
-    results = parse_lines(lines, prompt_re, generic_re, zsh_re)
-
-    # 后置过滤：
-    cleaned = []
+    filtered = []
     for cmd, out in results:
-        if not cmd:
+        if cmd is None:
             continue
-        # 去掉首尾空白
-        cmd = cmd.strip()
-        # 丢弃仅有提示符或空的情况
-        if not cmd:
+        tail = _tail_wtf(cmd)
+        if tail == 'wtf --logs':
+            # Drop this block
             continue
-        # 命令起始字符的简单校验：字母/数字/./~/`/"/'/-/_ 等常见情况
-        if not re.match(r"[A-Za-z0-9\./~`\"'-]", cmd):
-            # 仍允许，比如以括号或感叹号开头的历史/子进程调用，但避免过度误判
+        if tail == 'wtf':
+            # Merge output into the previous block
+            if filtered:
+                prev_cmd, prev_out = filtered[-1]
+                prev_out = f"{prev_out}\n{out}" if prev_out else out
+                filtered[-1] = (prev_cmd, prev_out)
+            else:
+                filtered.append(("", out))
             continue
-        cleaned.append((cmd, out))
-
-    filtered = filter_wtf_commands(cleaned)
+        filtered.append((cmd, out))
     return filtered
 
 def get_latest_log():
@@ -182,7 +180,8 @@ def get_last_n_commands(n=5):
     log_path = get_latest_log()
     text = log_path.read_text(errors="ignore")
     text = clean_text(text)
-    commands = extract_commands(text)
+    commands = extract_commands_timestamp_only(text)
+    commands = _filter_wtf_commands_inline(commands)
     return commands[-n:]
 
 def get_history_count():
@@ -195,10 +194,10 @@ def get_history_count():
 def main():
     try:
         history_count = int(get_history_count())
-    except (ValueError, TypeError) or history_count > 100 or history_count <= 0:
+    except (ValueError, TypeError):
         print("Warning: could not load configuration. Please run 'wtf --config'.")
         return
-    if history_count > 100 or history_count <= 0:
+    if history_count is None or history_count > 100 or history_count <= 0:
         print("Warning: invalid history count. Please run 'wtf --config'.")
         return
     try:

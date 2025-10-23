@@ -38,8 +38,7 @@ def _wtf_find_config_path_for_read() -> str:
             pass
     return str(proj_path)
 
-# Try to import parsing utilities from wtf_script.py. We import lazily inside the
-# method to avoid import-time side effects when running the config path.
+# Import parsing utilities from wtf_script.py lazily to avoid import-time side effects.
 
 
 def _wtf_load_config(path: str) -> Tuple[Dict, bool, Optional[Exception]]:
@@ -152,7 +151,7 @@ class CommandFixer:
         # First attempt: use wtf_script.py parsing utilities if available.
         try:
             # Import lazily to avoid interfering with --config flow or environments
-            from wtf_script import get_last_n_commands, get_latest_log, clean_text, extract_commands  # type: ignore
+            from wtf_script import get_last_n_commands  # type: ignore
         except Exception:
             get_last_n_commands = None  # type: ignore
 
@@ -184,22 +183,19 @@ class CommandFixer:
 
 
     def _get_previous_commands(self, hist_n: int) -> str:
+        """Build context from the latest N commands using timestamp-only parsing.
+        Falls back silently to empty context on any error.
+        """
         try:
-            from wtf_script import get_latest_log, clean_text, extract_commands  # type: ignore
-            log_path = get_latest_log()
-            raw = log_path.read_text(errors="ignore")
-            cleaned = clean_text(raw)
-            cmds = extract_commands(cleaned)
-            tail_cmds = cmds[-hist_n:] if cmds else []
+            from wtf_script import get_last_n_commands  # type: ignore
+            tail_cmds = get_last_n_commands(hist_n)
             formatted = []
-            for c, o in tail_cmds:
-                if c:
+            for c, o in tail_cmds or []:
+                if c is not None:
                     formatted.append(f"{c}\n\n{o}")
-            if formatted:
-                return "\n\n".join(formatted)
+            return "\n\n".join(formatted)
         except Exception:
-            pass
-        return ""
+            return ""
 
     def _build_prompt(self, full_context: str) -> str:
         return (
