@@ -111,7 +111,7 @@ _wtf_define_shell_func() {
     fi
 
     # Safe echo (no tput)
-    echo "$_prompt" 1>&2
+    echo -en "$_prompt" 1>&2
     IFS= read -r reply || {
       return 1
     }
