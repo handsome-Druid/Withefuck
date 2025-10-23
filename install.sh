@@ -14,15 +14,10 @@ ln -sf $pwd/wtf_profile.sh $HOME/.wtf_profile.sh
 chmod +x $HOME/.wtf_profile.sh
 ln -sf $pwd/wtf.sh $HOME/.wtf.sh
 
-# Set execute permissions for main scripts
-chmod +x $pwd/wtf.py
-chmod +x $pwd/wtf_script.py
 chmod +x $pwd/uninstall.sh
 
 
-#Create symlinks in /usr/local/bin for ash
-ln -sf $pwd/wtf.py /usr/local/bin/wtf.py
-ln -sf $pwd/wtf_script.py /usr/local/bin/wtf_script.py
+# Optional: expose uninstall helper in PATH
 ln -sf $pwd/uninstall.sh /usr/local/bin/uninstall.sh
 
 # Add sourcing to .bashrc, .zshrc, .ashrc if they exist
@@ -49,11 +44,17 @@ for rcfile in ~/.bashrc ~/.zshrc ~/.ashrc; do
 done
 
 # Source the scripts
-source $HOME/.wtf.sh
-source $HOME/.wtf_profile.sh
+. $HOME/.wtf_profile.sh
+. $HOME/.wtf.sh
 
-# Run initial configuration
-$pwd/wtf.py --config
+# Run initial configuration via Rust binary if available
+if command -v wtf >/dev/null 2>&1; then
+    wtf --config || true
+else
+    echo "Notice: 'wtf' binary not found in PATH."
+    echo "If you have Rust, you can build and install it with:"
+    echo "  (cd $pwd && cargo build --release && sudo cp target/release/wtf /usr/local/bin/wtf)"
+fi
 
 
 

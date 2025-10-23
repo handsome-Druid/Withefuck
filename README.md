@@ -41,3 +41,14 @@ rm -rf /opt/Withefuck
 ~~~
 
 然后重新下载安装
+
+## 构建 Rust 版本（可选，推荐）
+
+安装了 Rust 工具链后，可以本地构建原生二进制，并被 `wtf.sh` 自动优先使用：
+
+```bash
+cargo build --release
+sudo cp target/release/wtf /usr/local/bin/wtf
+```
+
+当检测到 `/usr/local/bin/wtf` 存在时，`wtf.sh` 会优先使用该二进制；否则回退到 Python 实现。

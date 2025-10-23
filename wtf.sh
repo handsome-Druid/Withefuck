@@ -30,50 +30,46 @@ unset -f _detect_script_path
     SCRIPT_DIR="/usr/local/bin"
   fi
 
+# Prefer Rust binary if installed
+WTF_BIN="/usr/local/bin/wtf"
+if [ ! -x "$WTF_BIN" ]; then
+  # also try PATH (avoid recursion by not using function name)
+  if command -v /usr/bin/command >/dev/null 2>&1; then :; fi
+  _wtf_path_bin="$(command -v wtf 2>/dev/null || true)"
+  case "$_wtf_path_bin" in
+    */wtf) [ -x "$_wtf_path_bin" ] && WTF_BIN="$_wtf_path_bin" ;;
+  esac
+fi
+
 # Define shell integration function (available when this file is sourced).
 _wtf_define_shell_func() {
   wtf() {
-    # If user provided args, forward them. Special-case --config to prefer
-    # installed `withefuck` executable if available.
+    # If user provided args, forward them to Rust binary; keep --uninstall local.
     if [ "$#" -gt 0 ]; then
+      # Always keep uninstall handled here
       for a in "$@"; do
-        if [ "$a" = "--config" ]; then
-          "${SCRIPT_DIR}/wtf.py" --config
-          return $?
-        fi
-        if [ "$a" = "--logs" ]; then
-          "${SCRIPT_DIR}/wtf_script.py"
-          return $?
-        fi
         if [ "$a" = "--uninstall" ]; then
           "${SCRIPT_DIR}/uninstall.sh"
           return $?
         fi
-        if [ "$a" = "--help" ] || [ "$a" = "-h" ]; then
-          echo "Withefuck - Command line tool to fix your previous console command."
-          echo
-          echo "Usage:"
-          echo "  wtf                Suggest fix for last command"
-          echo
-          echo "Options:"
-          echo "  --config           Configure Withefuck"
-          echo "  --logs             View shell logs"
-          echo "  --uninstall        Uninstall Withefuck"
-          echo "  -h, --help         Show this help message"
-          return 0
-        fi
-        echo "Unknown argument: $a"
-        return 1
       done
+
+      if [ -x "$WTF_BIN" ]; then
+        "$WTF_BIN" "$@"
+        return $?
+      else
+        >&2 echo "wtf binary not found. Please install it to /usr/local/bin/wtf."
+        return 127
+      fi
     fi
 
-    # Ensure the wrapper script is executable
-    if [ ! -x "${SCRIPT_DIR}/wtf.py" ] && [ -f "${SCRIPT_DIR}/wtf.py" ]; then
-      chmod +x "${SCRIPT_DIR}/wtf.py" || true
-    fi
-
-    # Call the wrapper to get suggestion (format: <cmd>)
-  raw_out="$("${SCRIPT_DIR}/wtf.py" --suggest 2>/dev/null || true)"
+    # Call Rust binary to get suggestion (format: <cmd>)
+  if [ -x "$WTF_BIN" ]; then
+    raw_out="$("$WTF_BIN" --suggest 2>/dev/null || true)"
+  else
+    >&2 echo "wtf binary not found. Please install it to /usr/local/bin/wtf."
+    return 127
+  fi
   out="$(printf '%s' "$raw_out" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
     if [ -z "$out" ]; then
@@ -96,22 +92,15 @@ _wtf_define_shell_func() {
     esac
 
     # Print suggestion for visibility
-    echo -n "$cmd "
+    printf '%s ' "$cmd"
 
-
-      # Portable colored prompt (safe for zsh/bash)
-    if [ -z "${WTF_NO_COLOR:-}" ] && [ -z "${NO_COLOR:-}" ] && [ -t 1 ]; then
-      # Use literal ANSI codes safely
-      _green='\033[32m'
-      _red='\033[31m'
-      _reset='\033[0m'
-      _prompt="[${_green}enter${_reset}/${_red}ctrl+c${_reset}] "
+    # Portable colored prompt printed to stderr
+    if [ -z "${WTF_NO_COLOR:-}" ] && [ -z "${NO_COLOR:-}" ] && { [ -t 2 ] || [ -t 1 ]; }; then
+      _prompt="$(printf '[\033[32menter\033[0m/\033[31mctrl+c\033[0m] ')"
     else
       _prompt="[enter/ctrl+c] "
     fi
-
-    # Safe echo (no tput)
-    echo "$_prompt" 1>&2
+    printf '%s' "$_prompt" 1>&2
     IFS= read -r reply || {
       return 1
     }
