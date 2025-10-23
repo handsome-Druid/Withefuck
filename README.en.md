@@ -12,6 +12,7 @@ Supports bash and zsh for now.
 ## Quick Start
 
 ```bash
+cd /opt
 git clone https://github.com/handsome-Druid/Withefuck.git
 cd Withefuck
 chmod +x ./install.sh
@@ -26,3 +27,12 @@ chmod +x ./install.sh
 ### Multi-turn fix
 
 ![Iterative Fix](./docs/demo-iterative-fix.gif)
+
+## Upgrade
+
+~~~bash
+wtf --uninstall
+rm -rf /opt/Withefuck
+~~~
+
+Then git clone and install again.

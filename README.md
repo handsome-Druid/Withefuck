@@ -12,6 +12,7 @@
 ## 快速开始
 
 ```bash
+cd /opt
 git clone https://github.com/handsome-Druid/Withefuck.git
 cd Withefuck
 chmod +x ./install.sh
@@ -31,3 +32,12 @@ chmod +x ./install.sh
 
 
 ![Iterative Fix](./docs/demo-iterative-fix.gif)
+
+## 如何升级
+
+~~~bash
+wtf --uninstall
+rm -rf /opt/Withefuck
+~~~
+
+然后重新下载安装
