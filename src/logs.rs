@@ -76,8 +76,36 @@ fn block_to_cmd_out(block: &[String]) -> Option<(String, String)> {
     let mut cmd_idx = None;
     for (i, ln) in block.iter().enumerate() { if !ln.trim().is_empty() { cmd_idx = Some(i); break; } }
     let i = cmd_idx?;
-    let cmd = block[i].to_string();
-    let out = block[i+1..].join("\n").trim().to_string();
+
+    // Helper: does a line contain 'wtf' not followed by specific options?
+    fn contains_wtf_without_help_opts(line: &str) -> bool {
+        // Find 'wtf' as a whole word anywhere in the line, capture what's after it on the same line
+        let re_wtf = Regex::new(r"(?i)\bwtf\b(.*)$").unwrap();
+        if let Some(caps) = re_wtf.captures(line) {
+            let rest = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+            // If the immediate args are one of the allowed info flags, do NOT treat specially
+            let re_allowed = Regex::new(r"(?i)^\s*(--help|-h|-V|--version|--config)\b").unwrap();
+            !re_allowed.is_match(rest)
+        } else {
+            false
+        }
+    }
+
+    // Start building command and decide where output begins
+    let mut cmd = block[i].to_string();
+    let mut out_start = i + 1;
+    if out_start < block.len() {
+        let next_line = &block[out_start];
+        // If the next line contains 'wtf' (anywhere) and isn't followed by help/version/config flags,
+        // treat it as part of the command line (to support zsh themes that wrap prompts).
+        if contains_wtf_without_help_opts(next_line) {
+            cmd.push('\n');
+            cmd.push_str(next_line);
+            out_start += 1;
+        }
+    }
+
+    let out = block[out_start..].join("\n").trim().to_string();
     Some((cmd, out))
 }
 
