@@ -63,6 +63,9 @@ _wtf_define_shell_func() {
         if [ "$a" = "--uninstall" ]; then
           "${SCRIPT_DIR}/uninstall.sh"
           return $?
+        elif [ "$a" = "--update" ]; then
+          "${SCRIPT_DIR}/update.sh"
+          return $?
         fi
       done
 
@@ -105,6 +108,7 @@ _wtf_define_shell_func() {
             echo "Options:"
             echo "  --config           Configure Withefuck"
             echo "  --logs             View shell logs"
+            echo "  --update           Update Withefuck
             echo "  --uninstall        Uninstall Withefuck"
             echo "  -h, --help         Show this help text"
             echo "  -V, --version      Show version"

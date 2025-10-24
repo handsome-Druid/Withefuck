@@ -46,6 +46,7 @@ chmod +x "$HOME/.wtf_profile.sh"
 ln -sf "$pwd/wtf.sh" "$HOME/.wtf.sh"
 
 chmod +x "$pwd/uninstall.sh"
+chmod +x "$pwd/update.sh"
 
 # Choose install path based on version.txt directive only
 # - If ends with -rs: build and install Rust binary
