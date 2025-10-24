@@ -19,17 +19,6 @@ chmod +x ./install.sh
 ./install.sh
 ```
 
-### Build the Rust version (optional but recommended)
-
-If you have Rust installed, you can build the native binary and let the shell wrapper use it automatically:
-
-```bash
-cargo build --release
-sudo cp target/release/wtf /usr/local/bin/wtf
-```
-
-The wrapper `wtf.sh` will prefer `/usr/local/bin/wtf` if present, and fall back to the Python scripts otherwise.
-
 ## Usage
 
 ### Single-turn fix

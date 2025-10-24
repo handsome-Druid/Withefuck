@@ -120,15 +120,24 @@ pub fn interactive_config() -> Result<(), String> {
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default();
+    // Show different message depending on whether a config file exists
+    if config_path.exists() {
+        println!("Existing configuration found. Press Enter to keep current values.");
+    } else {
+        println!("No existing configuration found. Please enter values.");
+    }
 
-    println!("Existing configuration found. Press Enter to keep current values.");
-
-    existing.api_key = Some(prompt("API Key", existing.api_key));
-    existing.api_endpoint = Some(prompt("API Endpoint (e.g. https://api.openai.com/v1/chat/completions)", existing.api_endpoint));
-    existing.model = Some(prompt("Model name (e.g. gpt-4)", existing.model));
-    let hc_str = prompt("Number of previous commands to include in context (less than 100)", Some(existing.history_count.to_string()));
+    // If there's no existing value for required fields, force user to enter non-empty values.
+    existing.api_key = Some(prompt("API Key", existing.api_key, true));
+    existing.api_endpoint = Some(prompt(
+        "API Endpoint (e.g. https://api.openai.com/v1/chat/completions)",
+        existing.api_endpoint,
+        true,
+    ));
+    existing.model = Some(prompt("Model name (e.g. gpt-4)", existing.model, true));
+    let hc_str = prompt("Number of previous commands to include in context (less than 100)", Some(existing.history_count.to_string()), false);
     existing.history_count = hc_str.parse().ok().filter(|v| *v>0 && *v<=100).unwrap_or(3);
-    let t_str = prompt("Sampling temperature for LLM (0.0-1.0)", Some(existing.temperature.to_string()));
+    let t_str = prompt("Sampling temperature for LLM (0.0-1.0)", Some(existing.temperature.to_string()), false);
     existing.temperature = t_str.parse().ok().filter(|v: &f32| *v>=0.0 && *v<=1.0).unwrap_or(0.0);
 
     let json = serde_json::to_string_pretty(&existing).map_err(|e| e.to_string())?;
@@ -137,14 +146,31 @@ pub fn interactive_config() -> Result<(), String> {
     Ok(())
 }
 
-fn prompt(label: &str, current: Option<String>) -> String {
+fn prompt(label: &str, current: Option<String>, required: bool) -> String {
     let mut stdout = io::stdout();
     let current_disp = current.clone().unwrap_or_default();
-    if current_disp.is_empty() { print!("{}: ", label); } else { print!("{} [{}]: ", label, current_disp); }
-    stdout.flush().ok();
+    loop {
+        if current_disp.is_empty() {
+            print!("{}: ", label);
+        } else {
+            print!("{} [{}]: ", label, current_disp);
+        }
+        stdout.flush().ok();
 
-    let mut line = String::new();
-    io::stdin().read_line(&mut line).ok();
-    let v = line.trim();
-    if v.is_empty() { current.unwrap_or_default() } else { v.to_string() }
+        let mut line = String::new();
+        io::stdin().read_line(&mut line).ok();
+        let v = line.trim();
+        if v.is_empty() {
+            if !current_disp.is_empty() {
+                return current_disp.clone();
+            }
+            if required {
+                println!("{} cannot be empty.", label);
+                continue;
+            }
+            return String::new();
+        } else {
+            return v.to_string();
+        }
+    }
 }

@@ -1,7 +1,7 @@
 [package]
 name = "wtf"
-version = "2.0.0"
-edition = "2021"
+version = "2.0.1-rs"
+edition = "2024"
 authors = ["山泥若叶睦"]
 description = "Withefuck: fix your last shell command using an LLM (Rust rewrite)"
 license = "BSD 3-Clause"

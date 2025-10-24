@@ -9,18 +9,12 @@ use std::process::Command;
 #[derive(Parser, Debug)]
 #[command(name = "wtf", version, about = "Fix your previous shell command using an LLM")] 
 struct Cli {
-    /// Configure wtf.json interactively (writes into the project directory)
+    /// Configure Withefuck
     #[arg(long)]
     config: bool,
-    /// Only suggest the fixed command, do not execute; prints "None" if no fix
-    #[arg(long)]
-    suggest: bool,
-    /// Show last N commands from logs
+    /// View shell logs
     #[arg(long)]
     logs: bool,
-    /// Number of history commands to show (used with --logs)
-    #[arg(long, default_value_t = 5)]
-    history: usize,
 }
 
 fn build_prompt(context: &str) -> String {
@@ -30,7 +24,6 @@ fn build_prompt(context: &str) -> String {
          - Correct flags and syntax (add missing leading dashes for short flags).\n\
          - Keep the user's intent and minimal changes.\n\
          - Quote paths/args with spaces.\n\
-         - For lsof port filters, use the canonical form: `lsof -i :<PORT>`.\n\
          - Output only the command, no comments, no backticks, no code fences.\n\
          - If nothing needs fixing or it's ambiguous, output exactly: None\n\n\
          Context:\n{}\n",
@@ -68,19 +61,19 @@ fn main() {
         return;
     }
 
-    if cli.logs {
-        logs::print_last_commands(cli.history);
-        return;
-    }
-
-    // Load config
+    // Load config (needed for history_count used by --logs)
     let cfg = match config::load_config() {
         Ok(c) => c,
-        Err(e) => { if cli.suggest { println!("Conferror"); return; } eprintln!("{}", e); std::process::exit(1) }
+        Err(e) => { eprintln!("{}", e); std::process::exit(1) }
     };
     if let Err(e) = cfg.validate() {
-        if cli.suggest { println!("Conferror"); return; }
         eprintln!("{}", e); std::process::exit(1);
+    }
+
+    if cli.logs {
+        let hist_n = if cfg.history_count == 0 { 5 } else { cfg.history_count };
+        logs::print_last_commands(hist_n);
+        return;
     }
 
     let hist_n = if cfg.history_count == 0 { 5 } else { cfg.history_count };
@@ -95,10 +88,6 @@ fn main() {
 
     match client.suggest(&prompt) {
         Ok(Some(suggestion)) => {
-            if cli.suggest {
-                println!("{}", suggestion);
-                return;
-            }
             // Interactive confirm
             print!("{} ", suggestion);
             let colored = if atty::is(atty::Stream::Stdout) && std::env::var("WTF_NO_COLOR").is_err() && std::env::var("NO_COLOR").is_err() {
@@ -116,10 +105,10 @@ fn main() {
             }
         }
         Ok(None) => {
-            if cli.suggest { println!("None"); } else { eprintln!("Unable to fix the command or no fix needed."); }
+            eprintln!("Unable to fix the command or no fix needed.");
         }
         Err(e) => {
-            if cli.suggest { println!("None"); } else { eprintln!("{}", e); }
+            eprintln!("{}", e);
         }
     }
 }
