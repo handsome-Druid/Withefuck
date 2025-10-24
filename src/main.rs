@@ -15,6 +15,12 @@ struct Cli {
     /// View shell logs
     #[arg(long)]
     logs: bool,
+    /// Update Withefuck
+    #[arg(long)]
+    update: bool,
+    /// Uninstall Withefuck
+    #[arg(long)]
+    uninstall: bool,
 }
 
 fn build_prompt(context: &str) -> String {
