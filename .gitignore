@@ -221,4 +221,4 @@ Cargo.lock
 target/
 
 #target
-wtf
+/wtf
