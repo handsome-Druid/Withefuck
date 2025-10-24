@@ -33,10 +33,10 @@ jobs:
           echo "Detected tag: $TAG"
           if [[ "$TAG" == *-py ]]; then
             echo "Tag ends with -py, updating version.txt"
-            # Ensure main branch is available and up-to-date
-            git fetch origin main
-            git checkout main
-            git pull origin main
+            # Ensure python branch is available and up-to-date
+            git fetch origin python
+            git checkout python
+            git pull origin python
 
             # Write tag into version.txt
             echo -n "$TAG" > version.txt
@@ -47,8 +47,8 @@ jobs:
               git config user.email "github-actions[bot]@users.noreply.github.com"
               git add version.txt
               git commit -m "Update version.txt to $TAG"
-              git push origin main
-              echo "version.txt updated and pushed to main"
+              git push origin python
+              echo "version.txt updated and pushed to python"
             else
               echo "version.txt unchanged, nothing to commit"
             fi
