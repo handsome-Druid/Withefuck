@@ -33,6 +33,8 @@ jobs:
           NORM=${TAG#v}
           if [[ "$NORM" == *-rs ]]; then
             echo "Tag ends with -rs, updating Cargo.toml"
+            echo "Updating version.txt"
+            echo -n "$TAG" > version.txt
             FILE=Cargo.toml
             if [ ! -f "$FILE" ]; then
               echo "$FILE not found, aborting" >&2
@@ -55,6 +57,7 @@ jobs:
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
               git add Cargo.toml
+              git add version.txt
               git commit -m "Update Cargo.toml version to ${NORM}"
               git push origin rust
               echo "Cargo.toml updated and pushed"
