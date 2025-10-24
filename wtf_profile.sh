@@ -47,8 +47,18 @@ if [ -z "$UNDER_SCRIPT" ]; then
         exec script --flush --command "$USER_SHELL --login" "$TS"
 else
     # Inside recorded shell (UNDER_SCRIPT=1): install hooks.
-    # For bash: print ASCII timestamp to keep logs minimal.
-    WTF_PROMPT_HOOK='__wtf_status=$?; __wtf_ts=$(date +%Y-%m-%dT%H:%M:%S); printf "%s %s %s\n" "-----" "$__wtf_ts" "-----"; (exit $__wtf_status)'
+    # For bash: print a powerline-style timestamp when on a TTY; fallback to ASCII otherwise.
+    # Note: The glyph "" requires a powerline-compatible font. Without it, a placeholder may appear.
+    WTF_PROMPT_HOOK='__wtf_status=$?; \
+    if [ -t 1 ]; then \
+        __wtf_ts=$(date +%Y-%m-%dT%H:%M:%S); \
+        # Green background + black text for timestamp block, then green arrow, then reset. \
+        printf "\033[42m\033[30m %s \033[0m\033[32m\033[0m\n" "$__wtf_ts"; \
+    else \
+        __wtf_ts=$(date +%Y-%m-%dT%H:%M:%S); \
+        printf "%s %s %s\n" "-----" "$__wtf_ts" "-----"; \
+    fi; \
+    (exit $__wtf_status)'
     if [ -n "$BASH_VERSION" ]; then
         if [ -n "$PROMPT_COMMAND" ]; then
             export PROMPT_COMMAND="$PROMPT_COMMAND; $WTF_PROMPT_HOOK"
