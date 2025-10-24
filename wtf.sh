@@ -108,7 +108,7 @@ _wtf_define_shell_func() {
             echo "Options:"
             echo "  --config           Configure Withefuck"
             echo "  --logs             View shell logs"
-            echo "  --update           Update Withefuck
+            echo "  --update           Update Withefuck"
             echo "  --uninstall        Uninstall Withefuck"
             echo "  -h, --help         Show this help text"
             echo "  -V, --version      Show version"
