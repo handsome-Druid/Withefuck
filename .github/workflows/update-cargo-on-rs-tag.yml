@@ -1,4 +1,4 @@
-name: Update rust/Cargo.toml on -rs tag
+name: Update Cargo.toml on -rs tag
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 jobs:
   update-cargo:
     runs-on: ubuntu-latest
-    name: Update rust/Cargo.toml when tag ends with -rs
+    name: Update Cargo.toml when tag ends with -rs
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,8 +32,8 @@ jobs:
           # Normalize: strip leading 'v' if present
           NORM=${TAG#v}
           if [[ "$NORM" == *-rs ]]; then
-            echo "Tag ends with -rs, updating rust/Cargo.toml"
-            FILE=rust/Cargo.toml
+            echo "Tag ends with -rs, updating Cargo.toml"
+            FILE=Cargo.toml
             if [ ! -f "$FILE" ]; then
               echo "$FILE not found, aborting" >&2
               exit 1
@@ -54,12 +54,12 @@ jobs:
             if git status --porcelain | grep -q "rust/Cargo.toml"; then
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add rust/Cargo.toml
-              git commit -m "Update rust/Cargo.toml version to ${NORM}"
+              git add Cargo.toml
+              git commit -m "Update Cargo.toml version to ${NORM}"
               git push origin rust
-              echo "rust/Cargo.toml updated and pushed"
+              echo "Cargo.toml updated and pushed"
             else
-              echo "No changes detected in rust/Cargo.toml"
+              echo "No changes detected in Cargo.toml"
             fi
           else
             echo "Tag does not end with -rs; skipping"
