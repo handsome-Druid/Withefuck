@@ -59,7 +59,7 @@ jobs:
               git add Cargo.toml
               git add version.txt
               git commit -m "Update Cargo.toml version to ${NORM}"
-              git push origin rust
+              git push origin "HEAD:refs/heads/rust"
               echo "Cargo.toml updated and pushed"
             else
               echo "No changes detected in Cargo.toml"
