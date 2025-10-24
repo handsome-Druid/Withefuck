@@ -47,8 +47,24 @@ if [ -z "$UNDER_SCRIPT" ]; then
         exec script --flush --command "$USER_SHELL --login" "$TS"
 else
     # Inside recorded shell (UNDER_SCRIPT=1): install hooks.
-    # For bash: print ASCII timestamp to keep logs minimal.
-    WTF_PROMPT_HOOK='__wtf_status=$?; __wtf_ts=$(date +%Y-%m-%dT%H:%M:%S); printf "%s %s %s\n" "-----" "$__wtf_ts" "-----"; (exit $__wtf_status)'
+        # For bash: print a powerline-style timestamp when on a TTY; fallback to ASCII otherwise.
+        # Note: The glyph "" requires a powerline-compatible font. Without it, a placeholder may appear.
+        WTF_PROMPT_HOOK='__wtf_status=$?; \
+if [ -t 1 ]; then \
+    __wtf_ts=$(date +%Y-%m-%dT%H:%M:%S); \
+    __wtf_colors=$(tput colors 2>/dev/null || echo 0); \
+    if [ "${__wtf_colors:-0}" -ge 256 ]; then \
+        # 256-color orange (208) background, black text, orange arrow
+        printf "\033[48;5;208m\033[30m %s \033[0m\033[38;5;208m\033[0m\n" "$__wtf_ts"; \
+    else \
+        # Fallback to basic yellow
+        printf "\033[43m\033[30m %s \033[0m\033[33m\033[0m\n" "$__wtf_ts"; \
+    fi; \
+else \
+    __wtf_ts=$(date +%Y-%m-%dT%H:%M:%S); \
+    printf "%s %s %s\n" "-----" "$__wtf_ts" "-----"; \
+fi; \
+(exit $__wtf_status)'
     if [ -n "$BASH_VERSION" ]; then
         if [ -n "$PROMPT_COMMAND" ]; then
             export PROMPT_COMMAND="$PROMPT_COMMAND; $WTF_PROMPT_HOOK"
@@ -61,8 +77,14 @@ else
         __wtf_precmd() {
             local st=$?
             if [ -t 1 ]; then
-                # Powerline-style: green segment with timestamp and a right arrow.
-                print -P -- "%K{green}%F{0} %D{%Y-%m-%dT%H:%M:%S} %f%k%F{green}%f"
+                # Powerline-style: orange (256-color 208) segment with timestamp and a right arrow.
+                # Fallback to yellow on limited color terminals.
+                local colors=${terminfo[colors]:-0}
+                local bg="208" fg="208"
+                if [[ ${colors} -lt 256 ]]; then
+                    bg="yellow"; fg="yellow"
+                fi
+                print -P -- "%K{${bg}}%F{0} %D{%Y-%m-%dT%H:%M:%S} %f%k%F{${fg}}%f"
             else
                 local ts=$(date +%Y-%m-%dT%H:%M:%S)
                 printf "%s %s %s\n" "-----" "$ts" "-----"
