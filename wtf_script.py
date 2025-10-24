@@ -100,8 +100,31 @@ def _block_to_cmd_out(block_lines):
             break
     if cmd_line_idx is None:
         return None
+    # Start building command and decide where output begins
     cmd = block_lines[cmd_line_idx]
-    out = "\n".join(block_lines[cmd_line_idx + 1:]).strip()
+    out_start = cmd_line_idx + 1
+
+    if out_start < len(block_lines):
+        next_line = block_lines[out_start]
+
+        # Helper: does a line contain 'wtf' not followed by specific options?
+        def contains_wtf_without_help_opts(line: str) -> bool:
+            # Find 'wtf' as a whole word anywhere in the line, capture what's after it on the same line
+            m = re.search(r"(?i)\bwtf\b(.*)$", line)
+            if not m:
+                return False
+            rest = m.group(1) or ""
+            # If the immediate args are one of the allowed info flags, do NOT treat specially
+            re_allowed = re.compile(r"(?i)^\s*(--help|-h|-V|--version|--config)\b")
+            return not re_allowed.match(rest)
+
+        # If the next line contains 'wtf' (anywhere) and isn't followed by help/version/config flags,
+        # treat it as part of the command line (to support zsh themes that wrap prompts).
+        if contains_wtf_without_help_opts(next_line):
+            cmd = cmd + "\n" + next_line
+            out_start += 1
+
+    out = "\n".join(block_lines[out_start:]).strip()
     return (cmd, out)
 
 def extract_last_command_simple(text: str):
