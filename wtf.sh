@@ -66,40 +66,7 @@ _wtf_define_shell_func() {
         elif [ "$a" = "--update" ]; then
           "${SCRIPT_DIR}/update.sh"
           return $?
-        fi
-      done
-
-      if [ "$_WTF_MODE" = "rs" ]; then
-        # Always forward to rust binary under -rs mode
-        if [ ! -x "$WTF_BIN" ]; then
-          echo "Rust mode selected by version.txt but /usr/local/bin/wtf is not installed or not executable." >&2
-          return 1
-        fi
-        "$WTF_BIN" "$@"
-        return $?
-      else
-        # Python mode: handle known options
-        for a in "$@"; do
-          if [ "$a" = "--config" ]; then
-            "${SCRIPT_DIR}/wtf.py" --config
-            return $?
-          fi
-          if [ "$a" = "--logs" ]; then
-            "${SCRIPT_DIR}/wtf_script.py"
-            return $?
-          fi
-          if [ "$a" = "--version" ] || [ "$a" = "-V" ]; then
-            if [ -f "${SCRIPT_DIR}/version.txt" ]; then
-              echo -n "wtf "
-              sed -n '1p' "${SCRIPT_DIR}/version.txt"
-              echo
-              return 0
-            else
-              echo "Version information not available."
-              return 1
-            fi
-          fi
-          if [ "$a" = "--help" ] || [ "$a" = "-h" ]; then
+        elif [ "$a" = "--help" ] || [ "$a" = "-h" ]; then
             echo "Withefuck - Command line tool to fix your previous console command."
             echo
             echo "Usage:"
@@ -113,6 +80,45 @@ _wtf_define_shell_func() {
             echo "  -h, --help         Show this help text"
             echo "  -V, --version      Show version"
             return 0
+        elif [ "$a" = "--version" ] || [ "$a" = "-V" ]; then
+          if [ -f "${SCRIPT_DIR}/version.txt" ]; then
+            echo -n "wtf "
+            sed -n '1p' "${SCRIPT_DIR}/version.txt"
+            echo
+            return 0
+          else
+            echo "Version information not available."
+            return 1
+          fi
+        fi
+      done
+
+      if [ "$_WTF_MODE" = "rs" ]; then
+        if [ ! -x "$WTF_BIN" ]; then
+          echo "Rust mode selected by version.txt but /usr/local/bin/wtf is not installed or not executable." >&2
+          return 1
+        fi
+        if [ "$1" = "--config" ]; then
+          # Prefer installed withefuck for config in rust mode
+          "$WTF_BIN" --config
+          return $?
+        fi
+        if [ "$1" = "--logs" ]; then
+          # Prefer installed withefuck for logs in rust mode
+          "$WTF_BIN" --logs
+          return $?
+        fi
+        return $?
+      else
+        # Python mode: handle known options
+        for a in "$@"; do
+          if [ "$a" = "--config" ]; then
+            "${SCRIPT_DIR}/wtf.py" --config
+            return $?
+          fi
+          if [ "$a" = "--logs" ]; then
+            "${SCRIPT_DIR}/wtf_script.py"
+            return $?
           fi
         done
         echo "Unknown argument: $1"
@@ -126,64 +132,65 @@ _wtf_define_shell_func() {
         echo "Rust mode selected by version.txt but /usr/local/bin/wtf is not installed or not executable." >&2
         return 1
       fi
-      "$WTF_BIN"
-      return $?
     else
       # Python mode behavior (existing suggest + confirm flow)
       # Ensure the wrapper script is executable
       if [ ! -x "${SCRIPT_DIR}/wtf.py" ] && [ -f "${SCRIPT_DIR}/wtf.py" ]; then
         chmod +x "${SCRIPT_DIR}/wtf.py" || true
       fi
-
+    fi
       # Call the wrapper to get suggestion (format: <cmd>)
+    if [ "$_WTF_MODE" = "rs" ]; then
+      raw_out="$("$WTF_BIN" --suggest 2>/dev/null || true)"
+    else
       raw_out="$("${SCRIPT_DIR}/wtf.py" --suggest 2>/dev/null || true)"
-      out="$(printf '%s' "$raw_out" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    fi
+    out="$(printf '%s' "$raw_out" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
-      if [ -z "$out" ]; then
-        >&2 echo "Incomplete configuration. Please run 'wtf --config' to set up."
-        return 1
-      fi
+    if [ -z "$out" ]; then
+      >&2 echo "Incomplete configuration. Please run 'wtf --config' to set up."
+      return 1
+    fi
 
-      cmd="$out"
+    cmd="$out"
 
-      if [ "$cmd" = "Conferror" ]; then
-        >&2 echo "Incomplete configuration. Please run 'wtf --config' to set up."
-        return 1
-      fi
+    if [ "$cmd" = "Conferror" ]; then
+      >&2 echo "Incomplete configuration. Please run 'wtf --config' to set up."
+      return 1
+    fi
 
-      case "$cmd" in
-        None|None\ *)
-          >&2 echo "Unable to fix the command or no fix needed."
-          return 0
-          ;;
-      esac
-
-      # Print suggestion for visibility
-      echo -n "$cmd "
-
-      # Portable colored prompt (safe for zsh/bash)
-      if [ -z "${WTF_NO_COLOR:-}" ] && [ -z "${NO_COLOR:-}" ] && [ -t 1 ]; then
-        # Use literal ANSI codes safely
-        _green='\033[32m'
-        _red='\033[31m'
-        _reset='\033[0m'
-        _prompt="[${_green}enter${_reset}/${_red}ctrl+c${_reset}] "
-      else
-        _prompt="[enter/ctrl+c] "
-      fi
-
-      # Safe echo (no tput)
-      echo -en "$_prompt" 1>&2
-      IFS= read -r reply || {
-        return 1
-      }
-
-      if [ -z "$reply" ]; then
-        eval "$cmd"
-        return $?
-      else
+    case "$cmd" in
+      None|None\ *)
+        >&2 echo "Unable to fix the command or no fix needed."
         return 0
-      fi
+        ;;
+    esac
+
+    # Print suggestion for visibility
+    echo -n "$cmd "
+
+    # Portable colored prompt (safe for zsh/bash)
+    if [ -z "${WTF_NO_COLOR:-}" ] && [ -z "${NO_COLOR:-}" ] && [ -t 1 ]; then
+      # Use literal ANSI codes safely
+      _green='\033[32m'
+      _red='\033[31m'
+      _reset='\033[0m'
+      _prompt="[${_green}enter${_reset}/${_red}ctrl+c${_reset}] "
+    else
+      _prompt="[enter/ctrl+c] "
+    fi
+
+    # Safe echo (no tput)
+    echo -en "$_prompt" 1>&2
+    IFS= read -r reply || {
+      return 1
+    }
+
+    if [ -z "$reply" ]; then
+      eval "$cmd"
+      return $?
+    else
+      return 0
     fi
   }
 }

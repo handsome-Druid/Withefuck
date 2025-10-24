@@ -9,6 +9,9 @@ use std::process::Command;
 #[derive(Parser, Debug)]
 #[command(name = "wtf", version, about = "Fix your previous shell command using an LLM")] 
 struct Cli {
+    /// Print suggested fix and exit
+    #[arg(long)]
+    suggest: bool,
     /// Configure Withefuck
     #[arg(long)]
     config: bool,
@@ -70,9 +73,13 @@ fn main() {
     // Load config (needed for history_count used by --logs)
     let cfg = match config::load_config() {
         Ok(c) => c,
-        Err(e) => { eprintln!("{}", e); std::process::exit(1) }
+        Err(e) => {
+            if cli.suggest { println!("Conferror"); return; }
+            eprintln!("{}", e); std::process::exit(1)
+        }
     };
     if let Err(e) = cfg.validate() {
+        if cli.suggest { println!("Conferror"); return; }
         eprintln!("{}", e); std::process::exit(1);
     }
 
@@ -94,32 +101,44 @@ fn main() {
 
     match client.suggest(&prompt) {
         Ok(Some(suggestion)) => {
-            // Interactive confirm (single line, single stream to avoid reordering)
-            eprint!("{} ", suggestion);
-            let colored = if atty::is(atty::Stream::Stderr)
-                && std::env::var("WTF_NO_COLOR").is_err()
-                && std::env::var("NO_COLOR").is_err()
-            {
-                format!("[\u{001b}[32menter\u{001b}[0m/\u{001b}[31mctrl+c\u{001b}[0m]")
+            if cli.suggest {
+                // Print suggestion and exit immediately (no prompt, no execution)
+                println!("{}", suggestion);
+                return;
             } else {
-                "[enter/ctrl+c]".to_string()
-            };
-            eprint!("{}", colored);
-            io::stderr().flush().ok();
-            let mut line = String::new();
-            if io::stdin().read_line(&mut line).is_err() { return; }
-            if line.trim().is_empty() {
-                // Move to a new line before executing to keep output clean
-                eprintln!("");
-                let code = shell_eval(&suggestion);
-                std::process::exit(code);
+                // Interactive confirm (single line, single stream to avoid reordering)
+                eprint!("{} ", suggestion);
+                let colored = if atty::is(atty::Stream::Stderr)
+                    && std::env::var("WTF_NO_COLOR").is_err()
+                    && std::env::var("NO_COLOR").is_err()
+                {
+                    format!("[\u{001b}[32menter\u{001b}[0m/\u{001b}[31mctrl+c\u{001b}[0m]")
+                } else {
+                    "[enter/ctrl+c]".to_string()
+                };
+                eprint!("{}", colored);
+                io::stderr().flush().ok();
+                let mut line = String::new();
+                if io::stdin().read_line(&mut line).is_err() { return; }
+                if line.trim().is_empty() {
+                    // Move to a new line before executing to keep output clean
+                    eprintln!("");
+                    let code = shell_eval(&suggestion);
+                    std::process::exit(code);
+                }
             }
         }
         Ok(None) => {
-            eprintln!("Unable to fix the command or no fix needed.");
+            if cli.suggest {
+                // In suggest mode, print literal "None" for scripting compatibility
+                println!("None");
+            } else {
+                eprintln!("Unable to fix the command or no fix needed.");
+            }
         }
         Err(e) => {
-            eprintln!("{}", e);
+            if cli.suggest { println!("None"); }
+            else { eprintln!("{}", e); }
         }
     }
 }
