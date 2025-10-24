@@ -53,7 +53,7 @@ jobs:
               }
             ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
 
-            if git status --porcelain | grep -q "rust/Cargo.toml"; then
+            if git status --porcelain | grep -q "Cargo.toml"; then
               git config user.name "github-actions[bot]"
               git config user.email "github-actions[bot]@users.noreply.github.com"
               git add Cargo.toml
