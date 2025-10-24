@@ -219,3 +219,6 @@ wtf.json.bak
 #rust
 Cargo.lock
 target/
+
+#target
+wtf
