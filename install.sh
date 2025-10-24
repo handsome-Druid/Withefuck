@@ -114,6 +114,27 @@ ensure_rust_build() {
     return 1
 }
 
+ensure_python_env(){
+    if command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    echo "python not found. Attempting to install Python..."
+    if command -v apt >/dev/null 2>&1 || command -v apt-get >/dev/null 2>&1; then
+        pkg_mgr=${pkg_mgr:-}
+        if command -v apt >/dev/null 2>&1; then pkg_mgr="apt"; else pkg_mgr="apt-get"; fi
+        echo "Installing build dependencies via $pkg_mgr (requires sudo)..."
+        sudo $pkg_mgr update || { echo "sudo $pkg_mgr update failed" >&2; return 1; }
+        sudo $pkg_mgr install -y python3 || { echo "sudo $pkg_mgr install failed" >&2; return 1; }
+    elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
+        if command -v dnf >/dev/null 2>&1; then pkg_mgr="dnf"; else pkg_mgr="yum"; fi
+        echo "Installing build dependencies via $pkg_mgr (requires sudo)..."
+        sudo $pkg_mgr install -y python3 || { echo "sudo $pkg_mgr install failed" >&2; return 1; }
+    else
+        echo "No supported package manager found (apt/dnf/yum). Please install Rust (rustup) manually: https://rustup.rs" >&2
+        return 1
+    fi
+}
+
 install_python_scripts() {
     chmod +x "$pwd/wtf.py"
     chmod +x "$pwd/wtf_script.py" || true
