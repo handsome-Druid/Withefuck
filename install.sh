@@ -9,6 +9,27 @@ pwd=$(cd "$(dirname "$0")" && pwd)
 echo "install_dir : $pwd"
 echo "Home : $HOME"
 
+# Decide install mode strictly by version.txt suffix: "*-py" or "*-rs"
+version_file="$pwd/version.txt"
+if [ ! -f "$version_file" ]; then
+    echo "ERROR: version.txt not found in $pwd. Installation aborted." >&2
+    exit 1
+fi
+
+raw_ver="$(sed -n '1p' "$version_file" | tr -d '\r' | tr -d ' ')"
+case "$raw_ver" in
+    *-py)
+        install_mode="python"
+        ;;
+    *-rs)
+        install_mode="rust"
+        ;;
+    *)
+        echo "ERROR: Invalid version suffix in version.txt ('$raw_ver'). Expected to end with -py or -rs. Installation aborted." >&2
+        exit 1
+        ;;
+esac
+
 # Helper: add sourcing line to rc files if not already present
 add_source_line() {
     local rcfile="$1"
@@ -26,10 +47,9 @@ ln -sf "$pwd/wtf.sh" "$HOME/.wtf.sh"
 
 chmod +x "$pwd/uninstall.sh"
 
-# Choose install path based on project contents
-# Priority: if Cargo.toml exists -> attempt Rust build and install binary
-# Otherwise if wtf.py exists -> install Python scripts
-# If neither, fall back to Python script installation but warn.
+# Choose install path based on version.txt directive only
+# - If ends with -rs: build and install Rust binary
+# - If ends with -py: install Python scripts
 
 ensure_rust_build() {
     # If binary already available, skip
@@ -114,31 +134,29 @@ install_rust_binary() {
     ln -sf "$pwd/uninstall.sh" /usr/local/bin/uninstall.sh || true
 }
 
-# Decide which flow to run
-if [ -f "$pwd/Cargo.toml" ]; then
-    echo "Cargo.toml found: using Rust build/install flow."
+# Execute the chosen install flow (no silent fallback)
+case "$install_mode" in
+  rust)
+    echo "version.txt ends with -rs: using Rust build/install flow."
     if ! ensure_rust_build; then
-        echo "Rust build failed; falling back to Python script installation." >&2
-        install_python_scripts
-        install_mode="python"
-    else
-        install_rust_binary
-        install_mode="rust"
+        echo "ERROR: Rust build failed. Installation aborted because version.txt requires -rs." >&2
+        exit 1
     fi
-elif [ -f "$pwd/wtf.py" ]; then
-    echo "wtf.py found: using Python script installation."
+    install_rust_binary
+    ;;
+  python)
+    echo "version.txt ends with -py: using Python script installation."
+    if [ ! -f "$pwd/wtf.py" ]; then
+        echo "ERROR: Python mode selected by version.txt, but wtf.py not found. Installation aborted." >&2
+        exit 1
+    fi
     install_python_scripts
-    install_mode="python"
-else
-    echo "Neither Cargo.toml nor wtf.py found; defaulting to Python script installation (if present)." >&2
-    if [ -f "$pwd/wtf.py" ]; then
-        install_python_scripts
-        install_mode="python"
-    else
-        echo "No installable target found. Please ensure wtf.py or Cargo.toml is present." >&2
-        install_mode="none"
-    fi
-fi
+    ;;
+  *)
+    echo "ERROR: Unknown install_mode '$install_mode'." >&2
+    exit 1
+    ;;
+esac
 
 # Add sourcing lines to shell rc files
 for rcfile in ~/.bashrc ~/.zshrc ~/.ashrc; do

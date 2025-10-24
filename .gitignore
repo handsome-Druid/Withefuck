@@ -218,3 +218,4 @@ wtf.json.bak
 
 # rust
 Cargo.lock
+/wtf
