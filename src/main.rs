@@ -88,18 +88,23 @@ fn main() {
 
     match client.suggest(&prompt) {
         Ok(Some(suggestion)) => {
-            // Interactive confirm
-            print!("{} ", suggestion);
-            let colored = if atty::is(atty::Stream::Stdout) && std::env::var("WTF_NO_COLOR").is_err() && std::env::var("NO_COLOR").is_err() {
+            // Interactive confirm (single line, single stream to avoid reordering)
+            eprint!("{} ", suggestion);
+            let colored = if atty::is(atty::Stream::Stderr)
+                && std::env::var("WTF_NO_COLOR").is_err()
+                && std::env::var("NO_COLOR").is_err()
+            {
                 format!("[\u{001b}[32menter\u{001b}[0m/\u{001b}[31mctrl+c\u{001b}[0m]")
             } else {
                 "[enter/ctrl+c]".to_string()
             };
-            eprintln!(" {}", colored);
-            io::stdout().flush().ok();
+            eprint!("{}", colored);
+            io::stderr().flush().ok();
             let mut line = String::new();
             if io::stdin().read_line(&mut line).is_err() { return; }
             if line.trim().is_empty() {
+                // Move to a new line before executing to keep output clean
+                eprintln!("");
                 let code = shell_eval(&suggestion);
                 std::process::exit(code);
             }
