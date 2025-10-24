@@ -84,7 +84,7 @@ fn block_to_cmd_out(block: &[String]) -> Option<(String, String)> {
         if let Some(caps) = re_wtf.captures(line) {
             let rest = caps.get(1).map(|m| m.as_str()).unwrap_or("");
             // If the immediate args are one of the allowed info flags, do NOT treat specially
-            let re_allowed = Regex::new(r"(?i)^\s*(--help|-h|-V|--version|--config)\b").unwrap();
+            let re_allowed = Regex::new(r"(?i)^\s*(--help|-h|-V|--version|--config|--update|--uninstall)\b").unwrap();
             !re_allowed.is_match(rest)
         } else {
             false
