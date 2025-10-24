@@ -171,6 +171,10 @@ case "$install_mode" in
         echo "ERROR: Python mode selected by version.txt, but wtf.py not found. Installation aborted." >&2
         exit 1
     fi
+    if ! ensure_python_env; then
+        echo "ERROR: Python environment setup failed. Installation aborted because version.txt requires -py." >&2
+        exit 1
+    fi
     install_python_scripts
     ;;
   *)
