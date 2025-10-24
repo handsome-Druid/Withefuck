@@ -30,12 +30,38 @@ unset -f _detect_script_path
     SCRIPT_DIR="/usr/local/bin"
   fi
 
+# Prefer Rust binary if installed
+WTF_BIN="/usr/local/bin/wtf"
+if [ ! -x "$WTF_BIN" ]; then
+  # also try PATH (avoid recursion by not using function name)
+  if command -v /usr/bin/command >/dev/null 2>&1; then :; fi
+  _wtf_path_bin="$(command -v wtf 2>/dev/null || true)"
+  case "$_wtf_path_bin" in
+    */wtf) [ -x "$_wtf_path_bin" ] && WTF_BIN="$_wtf_path_bin" ;;
+  esac
+fi
+
 # Define shell integration function (available when this file is sourced).
 _wtf_define_shell_func() {
   wtf() {
     # If user provided args, forward them. Special-case --config to prefer
     # installed `withefuck` executable if available.
     if [ "$#" -gt 0 ]; then
+      # Always keep uninstall handled here
+      for a in "$@"; do
+        if [ "$a" = "--uninstall" ]; then
+          "${SCRIPT_DIR}/uninstall.sh"
+          return $?
+        fi
+      done
+
+      # If Rust binary exists, forward all args directly to it (supports --version, --help, etc.)
+      if [ -x "$WTF_BIN" ]; then
+        "$WTF_BIN" "$@"
+        return $?
+      fi
+
+      # Fallback to Python for known options when Rust binary is not available
       for a in "$@"; do
         if [ "$a" = "--config" ]; then
           "${SCRIPT_DIR}/wtf.py" --config
@@ -45,9 +71,16 @@ _wtf_define_shell_func() {
           "${SCRIPT_DIR}/wtf_script.py"
           return $?
         fi
-        if [ "$a" = "--uninstall" ]; then
-          "${SCRIPT_DIR}/uninstall.sh"
-          return $?
+        if [ "$a" = "--version" ] || [ "$a" = "-V" ]; then
+          if [ -f "${SCRIPT_DIR}/version.txt" ]; then
+            echo -n "wtf "
+            cat "${SCRIPT_DIR}/version.txt"
+            echo
+            return 0
+          else
+            echo "Version information not available."
+            return 1
+          fi
         fi
         if [ "$a" = "--help" ] || [ "$a" = "-h" ]; then
           echo "Withefuck - Command line tool to fix your previous console command."
@@ -59,12 +92,13 @@ _wtf_define_shell_func() {
           echo "  --config           Configure Withefuck"
           echo "  --logs             View shell logs"
           echo "  --uninstall        Uninstall Withefuck"
-          echo "  -h, --help         Show this help message"
+          echo "  -h, --help         Show this help text"
+          echo "  -V, --version      Show version"
           return 0
         fi
-        echo "Unknown argument: $a"
-        return 1
       done
+      echo "Unknown argument: $1"
+      return 1
     fi
 
     # Ensure the wrapper script is executable
@@ -73,7 +107,9 @@ _wtf_define_shell_func() {
     fi
 
     # Call the wrapper to get suggestion (format: <cmd>)
+
   raw_out="$("${SCRIPT_DIR}/wtf.py" --suggest 2>/dev/null || true)"
+
   out="$(printf '%s' "$raw_out" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
     if [ -z "$out" ]; then

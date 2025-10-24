@@ -1,0 +1,57 @@
+name: Update version.txt on Python tag
+
+on:
+  push:
+    tags:
+      - '**'
+
+permissions:
+  contents: write
+
+jobs:
+  update-version:
+    name: Update version.txt when tag ends with -py
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Extract tag
+        id: tag
+        run: |
+          echo "GITHUB_REF=$GITHUB_REF"
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Update version.txt if tag ends with -py
+        if: startsWith(steps.tag.outputs.tag, '\\') == false
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          echo "Detected tag: $TAG"
+          if [[ "$TAG" == *-py ]]; then
+            echo "Tag ends with -py, updating version.txt"
+            # Ensure main branch is available and up-to-date
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            # Write tag into version.txt
+            echo -n "$TAG" > version.txt
+
+            # Commit only if changed
+            if git status --porcelain | grep -q "version.txt"; then
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add version.txt
+              git commit -m "Update version.txt to $TAG"
+              git push origin main
+              echo "version.txt updated and pushed to main"
+            else
+              echo "version.txt unchanged, nothing to commit"
+            fi
+          else
+            echo "Tag does not end with -py; skipping"
+          fi

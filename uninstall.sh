@@ -2,6 +2,7 @@
 
 rm -rf /usr/local/bin/wtf.py
 rm -rf /usr/local/bin/wtf_script.py
+rm -rf /usr/local/bin/wtf
 rm -rf /usr/local/bin/wtf.json
 rm -rf /usr/local/bin/uninstall.sh
 rm -rf ~/.wtf.sh
