@@ -73,6 +73,11 @@ ensure_script(){
 
 ensure_rust_build() {
     # If binary already available, skip
+
+    if [ -f "$HOME/.cargo/env" ]; then
+        . "$HOME/.cargo/env"
+    fi
+
     if command -v wtf >/dev/null 2>&1 || [ -f "$pwd/wtf" ]; then
         echo "wtf binary already present; skipping Rust build step."
         return 0
