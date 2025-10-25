@@ -16,20 +16,17 @@ OSC_RE = re.compile(r"\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)")
 # Other single-char controls that pollute logs
 CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
-# ISO8601-like timestamp used by the prompt hooks
-ISO_TS = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
-
-def _get_timestamp_regexes():
+def _get_hook_regexes():
     """
-    Return regexes that match timestamp divider lines after clean_text().
-    Supported forms:
-    - bash: "----- <ISO> -----"
-    - zsh/powerline: " <ISO> " or "<ISO>  "
+    Return regexes that match the literal divider lines inserted by the prompt hooks
+    after clean_text(). Supported forms now match the fixed message:
+    - bash ASCII divider: "----- Shell log started. -----"
+    - zsh/powerline: " Shell log started. " or "Shell log started. "
     """
-    # bash ASCII divider
-    bash_ts = re.compile(rf"^-+\s+{ISO_TS}\s+-+$")
-    # zsh flexible: optional rounded ( ... ) or right arrow () around ISO ts
-    zsh_ts = re.compile(rf"^\s*(?:\s*)?{ISO_TS}(?:\s*|\s*)?\s*$")
+    # bash ASCII divider containing the literal message
+    bash_ts = re.compile(r"^-+\s+Shell log started\.\s+-+$")
+    # zsh flexible: optional rounded ( ... ) or right arrow () around the literal message
+    zsh_ts = re.compile(r"^\s*(?:\s*)?Shell log started\.(?:\s*|\s*)?\s*$")
     return [zsh_ts, bash_ts]
 
 def _strip_backspaces(s: str) -> str:
@@ -67,13 +64,13 @@ def append_result(results, current_cmd, current_output):
     if current_cmd is not None:
         results.append((current_cmd, "\n".join(current_output).strip()))
 
-def _extract_blocks_by_timestamps(lines):
+def _extract_blocks_by_hooks(lines):
     """
-    Split the log by timestamp divider lines (dividers excluded).
+    Split the log by hook divider lines (dividers excluded).
     Return blocks from oldest to newest (each is List[str]).
-    Only keep content strictly between adjacent timestamp lines.
+    Only keep content strictly between adjacent hook lines.
     """
-    ts_res = _get_timestamp_regexes()
+    ts_res = _get_hook_regexes()
     ts_idx = [i for i, ln in enumerate(lines) if any(r.match(ln) for r in ts_res)]
     blocks = []
     if len(ts_idx) < 2:
@@ -129,25 +126,25 @@ def _block_to_cmd_out(block_lines):
 
 def extract_last_command_simple(text: str):
     """
-    Minimal extraction: take the content between the last two timestamp lines.
+    Minimal extraction: take the content between the last two hook lines.
     cmd = first non-empty line in that range; out = the rest.
-    Return None if fewer than two timestamp lines exist.
+    Return None if fewer than two hook lines exist.
     """
     lines = text.splitlines()
-    blocks = _extract_blocks_by_timestamps(lines)
+    blocks = _extract_blocks_by_hooks(lines)
     if not blocks:
         return None
     last_block = blocks[-1]
     return _block_to_cmd_out(last_block)
 
-def extract_commands_timestamp_only(text: str):
+def extract_commands_hook_only(text: str):
     """
-    Extract all (cmd, out) blocks using only timestamp dividers. Oldest to newest.
+    Extract all (cmd, out) blocks using only hook dividers. Oldest to newest.
     cmd = first non-empty line (prompt kept); out = remaining lines (stripped).
     Empty blocks are dropped. No special filtering.
     """
     lines = text.splitlines()
-    blocks = _extract_blocks_by_timestamps(lines)
+    blocks = _extract_blocks_by_hooks(lines)
     pairs = []
     for blk in blocks:
         item = _block_to_cmd_out(blk)
@@ -203,7 +200,7 @@ def get_last_n_commands(n=5):
     log_path = get_latest_log()
     text = log_path.read_text(errors="ignore")
     text = clean_text(text)
-    commands = extract_commands_timestamp_only(text)
+    commands = extract_commands_hook_only(text)
     commands = _filter_wtf_commands_inline(commands)
     return commands[-n:]
 

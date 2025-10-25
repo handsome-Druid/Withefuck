@@ -51,18 +51,18 @@ else
         # Note: The glyph "" requires a powerline-compatible font. Without it, a placeholder may appear.
         WTF_PROMPT_HOOK='__wtf_status=$?; \
 if [ -t 1 ]; then \
-    __wtf_ts=$(date +%Y-%m-%dT%H:%M:%S); \
+    __wtf_msg="Shell log started."; \
     __wtf_colors=$(tput colors 2>/dev/null || echo 0); \
     if [ "${__wtf_colors:-0}" -ge 256 ]; then \
         # 256-color orange (208) background, black text, orange arrow
-        printf "\033[48;5;208m\033[30m %s \033[0m\033[38;5;208m\033[0m\n" "$__wtf_ts"; \
+        printf "\033[48;5;208m\033[30m %s \033[0m\033[38;5;208m\033[0m\n" "$__wtf_msg"; \
     else \
         # Fallback to basic yellow
-        printf "\033[43m\033[30m %s \033[0m\033[33m\033[0m\n" "$__wtf_ts"; \
+        printf "\033[43m\033[30m %s \033[0m\033[33m\033[0m\n" "$__wtf_msg"; \
     fi; \
 else \
-    __wtf_ts=$(date +%Y-%m-%dT%H:%M:%S); \
-    printf "%s %s %s\n" "-----" "$__wtf_ts" "-----"; \
+    __wtf_msg="Shell log started."; \
+    printf "%s %s %s\n" "-----" "$__wtf_msg" "-----"; \
 fi; \
 (exit $__wtf_status)'
     if [ -n "$BASH_VERSION" ]; then
@@ -84,10 +84,10 @@ fi; \
                 if [[ ${colors} -lt 256 ]]; then
                     bg="yellow"; fg="yellow"
                 fi
-                print -P -- "%K{${bg}}%F{0} %D{%Y-%m-%dT%H:%M:%S} %f%k%F{${fg}}%f"
+                print -P -- "%K{${bg}}%F{0} Shell log started. %f%k%F{${fg}}%f"
             else
-                local ts=$(date +%Y-%m-%dT%H:%M:%S)
-                printf "%s %s %s\n" "-----" "$ts" "-----"
+                local msg="Shell log started."
+                printf "%s %s %s\n" "-----" "$msg" "-----"
             fi
             return $st
         }
