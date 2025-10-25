@@ -47,16 +47,16 @@ fn clean_text(text: &str) -> String {
     t.trim().to_string()
 }
 
-fn timestamp_regexes() -> Vec<Regex> {
-    // bash ASCII divider
-    let bash_ts = Regex::new(r"^-+\s+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\s+-+$").unwrap();
-    // zsh flexible: optional rounded or right arrow
-    let zsh_ts = Regex::new(r"^\s*(?:\s*)?\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\s*|\s*)?\s*$").unwrap();
+fn hook_regexes() -> Vec<Regex> {
+    // bash ASCII divider containing the literal message
+    let bash_ts = Regex::new(r"^-+\s+Shell log started\.\s+-+$").unwrap();
+    // zsh flexible: optional rounded or right arrow around the literal message
+    let zsh_ts = Regex::new(r"^\s*(?:\s*)?Shell log started\.(?:\s*|\s*)?\s*$").unwrap();
     vec![zsh_ts, bash_ts]
 }
 
-fn extract_blocks_by_timestamps(lines: &[String]) -> Vec<Vec<String>> {
-    let ts = timestamp_regexes();
+fn extract_blocks_by_hooks(lines: &[String]) -> Vec<Vec<String>> {
+    let ts = hook_regexes();
     let mut idx = Vec::new();
     for (i, ln) in lines.iter().enumerate() {
         if ts.iter().any(|r| r.is_match(ln.as_str())) { idx.push(i); }
@@ -136,7 +136,7 @@ pub fn get_last_n_commands(n: usize) -> Result<Vec<(String, String)>, String> {
     let raw = fs::read_to_string(&path).map_err(|e| format!("Failed to read log: {e}"))?;
     let cleaned = clean_text(&raw);
     let lines: Vec<String> = cleaned.lines().map(|s| s.to_string()).collect();
-    let blocks = extract_blocks_by_timestamps(&lines);
+    let blocks = extract_blocks_by_hooks(&lines);
     let mut pairs: Vec<(String, String)> = Vec::new();
     for blk in blocks { if let Some(p) = block_to_cmd_out(&blk) { pairs.push(p); } }
     let pairs = filter_wtf_commands_inline(&pairs);
