@@ -239,9 +239,9 @@ insert_line_top() {
 # Add sourcing lines to shell rc
 for rcfile in ~/.bashrc ~/.zshrc; do
     if [ -f "$rcfile" ]; then
-        # Special handling for zsh: ensure instant prompt quiet mode is defined early
+        # Special handling for zsh: ensure instant prompt off mode is defined early
         if [ -f ~/.zshrc ]; then
-            insert_line_top ~/.zshrc 'typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet'
+            insert_line_top ~/.zshrc 'typeset -g POWERLEVEL9K_INSTANT_PROMPT=off'
         fi
         src_cmd="source"
         add_source_line "$rcfile" "$src_cmd" "$HOME/.wtf.sh"
