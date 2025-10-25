@@ -1,6 +1,6 @@
 [package]
 name = "wtf"
-version = "2.1.4-rs"
+version = "2.1.5-rs"
 edition = "2024"
 authors = ["山泥若叶睦"]
 description = "Withefuck: fix your last shell command using an LLM (Rust rewrite)"
