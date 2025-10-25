@@ -14,6 +14,11 @@ fi
 
 ensure_rust_build() {
     # If cargo available, rebuild
+
+    if [ -f "$HOME/.cargo/env" ]; then
+        . "$HOME/.cargo/env"
+    fi
+
     if command -v cargo >/dev/null 2>&1; then
         echo "cargo found. Building release binary..."
         (cd "$pwd" && cargo clean && cargo build --release) || { echo "cargo build failed; aborting." >&2; return 1; }
