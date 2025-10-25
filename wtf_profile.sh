@@ -47,24 +47,24 @@ if [ -z "$UNDER_SCRIPT" ]; then
         exec script --flush --command "$USER_SHELL --login" "$TS"
 else
     # Inside recorded shell (UNDER_SCRIPT=1): install hooks.
-    # For bash: print a powerline-style timestamp when on a TTY; fallback to ASCII otherwise.
-    # Note: The glyph "" requires a powerline-compatible font. Without it, a placeholder may appear.
-    WTF_PROMPT_HOOK='__wtf_status=$?; \
-    if [ -t 1 ]; then \
-        __wtf_msg="Shell log started."; \
-        __wtf_colors=$(tput colors 2>/dev/null || echo 0); \
-        if [ "${__wtf_colors:-0}" -ge 256 ]; then \
-            # 256-color orange (208) background, black text, orange arrow
-            printf "\033[48;5;208m\033[30m %s \033[0m\033[38;5;208m\033[0m\n" "$__wtf_msg"; \
-        else \
-            # Fallback to basic yellow
-            printf "\033[43m\033[30m %s \033[0m\033[33m\033[0m\n" "$__wtf_msg"; \
-        fi; \
+        # For bash: print a powerline-style timestamp when on a TTY; fallback to ASCII otherwise.
+        # Note: The glyph "" requires a powerline-compatible font. Without it, a placeholder may appear.
+        WTF_PROMPT_HOOK='__wtf_status=$?; \
+if [ -t 1 ]; then \
+    __wtf_msg="Shell log started."; \
+    __wtf_colors=$(tput colors 2>/dev/null || echo 0); \
+    if [ "${__wtf_colors:-0}" -ge 256 ]; then \
+        # 256-color orange (208) background, black text, orange arrow
+        printf "\033[48;5;208m\033[30m %s \033[0m\033[38;5;208m\033[0m\n" "$__wtf_msg"; \
     else \
-        __wtf_msg="Shell log started."; \
-        printf "%s %s %s\n" "-----" "$__wtf_msg" "-----"; \
+        # Fallback to basic yellow
+        printf "\033[43m\033[30m %s \033[0m\033[33m\033[0m\n" "$__wtf_msg"; \
     fi; \
-    (exit $__wtf_status)'
+else \
+    __wtf_msg="Shell log started."; \
+    printf "%s %s %s\n" "-----" "$__wtf_msg" "-----"; \
+fi; \
+(exit $__wtf_status)'
     if [ -n "$BASH_VERSION" ]; then
         if [ -n "$PROMPT_COMMAND" ]; then
             export PROMPT_COMMAND="$PROMPT_COMMAND; $WTF_PROMPT_HOOK"
@@ -74,45 +74,24 @@ else
     fi
 
     if [ -n "$ZSH_VERSION" ]; then
-        # Function to print shell log safely
-        __wtf_print_shell_log() {
+        __wtf_precmd() {
             local st=$?
             if [ -t 1 ]; then
-                # Detect if we can use print -P (zsh prompt escape sequences)
-                if print -P "" &>/dev/null; then
-                    # Powerline-style: orange (256-color 208) segment with right arrow
-                    local colors=${terminfo[colors]:-0}
-                    local bg="208" fg="208"
-                    if [[ ${colors} -lt 256 ]]; then
-                        bg="yellow"
-                        fg="yellow"
-                    fi
-                    print -P -- "%K{${bg}}%F{0} Shell log started. %f%k%F{${fg}}%f"
-                else
-                    echo "Shell log started."
+                # Powerline-style: orange (256-color 208) segment with timestamp and a right arrow.
+                # Fallback to yellow on limited color terminals.
+                local colors=${terminfo[colors]:-0}
+                local bg="208" fg="208"
+                if [[ ${colors} -lt 256 ]]; then
+                    bg="yellow"; fg="yellow"
                 fi
+                print -P -- "%K{${bg}}%F{0} Shell log started. %f%k%F{${fg}}%f"
             else
-                printf "----- Shell log started. -----\n"
+                local msg="Shell log started."
+                printf "%s %s %s\n" "-----" "$msg" "-----"
             fi
             return $st
         }
-
-        # If Powerlevel10k is active, print after instant prompt
-        if [[ -n ${P10K_INSTANT_PROMPT_DONE+x} ]]; then
-            __wtf_print_shell_log
-        fi
-
-        # Register a hook for Powerlevel10k instant prompt done (safe)
-        autoload -Uz add-zsh-hook 2>/dev/null || true
-        if command -v add-zsh-hook >/dev/null 2>&1 || typeset -f add-zsh-hook >/dev/null 2>&1; then
-            add-zsh-hook -Uz p10k-instant-prompt-done __wtf_print_shell_log 2>/dev/null || true
-        fi
-
-        # Always register precmd hook for other themes
-        __wtf_precmd() {
-            __wtf_print_shell_log
-        }
-
+    autoload -U add-zsh-hook 2>/dev/null || true
         if command -v add-zsh-hook >/dev/null 2>&1 || typeset -f add-zsh-hook >/dev/null 2>&1; then
             add-zsh-hook -Uz precmd __wtf_precmd 2>/dev/null || add-zsh-hook precmd __wtf_precmd 2>/dev/null || true
         else

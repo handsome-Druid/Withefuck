@@ -12,12 +12,13 @@ rm -rf ~/.wtf_profile.sh
 rm -rf ~/.shell_logs
 
 
-for rcfile in ~/.bashrc ~/.zshrc ~/.ashrc; do
+for rcfile in ~/.bashrc ~/.zshrc; do
     if [ -f "$rcfile" ]; then
         sed -i "\|source $HOME/\.wtf\.sh|d" "$rcfile"
         sed -i "\|source $HOME/\.wtf_profile\.sh|d" "$rcfile"
         sed -i "\|\. $HOME/\.wtf\.sh|d" "$rcfile"
         sed -i "\|\. $HOME/\.wtf_profile\.sh|d" "$rcfile"
+        sed -i "/#wtf_install/d" "$rcfile"
     fi
 done
 
