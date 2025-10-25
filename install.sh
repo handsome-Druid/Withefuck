@@ -53,7 +53,7 @@ chmod +x "$pwd/update.sh"
 # - If ends with -py: install Python scripts
 
 ensure_script(){
-    if command -v srcipt >/dev/null 2>&1; then
+    if command -v script >/dev/null 2>&1; then
         return 0
     fi
     if command -v apt >/dev/null 2>&1 || command -v apt-get >/dev/null 2>&1; then
