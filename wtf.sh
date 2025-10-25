@@ -108,6 +108,7 @@ _wtf_define_shell_func() {
           "$WTF_BIN" --logs
           return $?
         fi
+        echo "Unknown argument: $1"
         return $?
       else
         # Python mode: handle known options
