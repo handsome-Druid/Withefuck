@@ -213,14 +213,37 @@ case "$install_mode" in
     ;;
 esac
 
-# Add sourcing lines to shell rc files
-for rcfile in ~/.bashrc ~/.zshrc ~/.ashrc; do
+# Helper: insert line at top if not present
+insert_line_top() {
+    local rcfile="$1"
+    local line="$2"
+
+    # Skip if file doesn't exist
+    [ ! -f "$rcfile" ] && return 0
+
+    # If already present, do nothing
+    if grep -qF "$line" "$rcfile"; then
+        return 0
+    fi
+
+    # Insert at top (preserve existing file)
+    tmpfile="$(mktemp)"
+    {
+        echo "$line #wtf_install"
+        cat "$rcfile"
+    } > "$tmpfile"
+    mv "$tmpfile" "$rcfile"
+}
+
+
+# Add sourcing lines to shell rc
+for rcfile in ~/.bashrc ~/.zshrc; do
     if [ -f "$rcfile" ]; then
-        if echo "$rcfile" | grep -q "ashrc"; then
-            src_cmd="."
-        else
-            src_cmd="source"
+        # Special handling for zsh: ensure instant prompt quiet mode is defined early
+        if [ -f ~/.zshrc ]; then
+            insert_line_top ~/.zshrc 'typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet'
         fi
+        src_cmd="source"
         add_source_line "$rcfile" "$src_cmd" "$HOME/.wtf.sh"
         add_source_line "$rcfile" "$src_cmd" "$HOME/.wtf_profile.sh"
     fi
