@@ -52,6 +52,26 @@ chmod +x "$pwd/update.sh"
 # - If ends with -rs: build and install Rust binary
 # - If ends with -py: install Python scripts
 
+ensure_script(){
+    if command -v srcipt >/dev/null 2>&1; then
+        return 0
+    fi
+    if command -v apt >/dev/null 2>&1 || command -v apt-get >/dev/null 2>&1; then
+        pkg_mgr=${pkg_mgr:-}
+        if command -v apt >/dev/null 2>&1; then pkg_mgr="apt"; else pkg_mgr="apt-get"; fi
+        echo "Installing script via $pkg_mgr (requires sudo)..."
+        sudo $pkg_mgr update || { echo "sudo $pkg_mgr update failed" >&2; return 1; }
+        sudo $pkg_mgr install -y script || { echo "sudo $pkg_mgr install failed" >&2; return 1; }
+    elif command -v dnf >/dev/null 2>&1 || command -v yum >/dev/null 2>&1; then
+        if command -v dnf >/dev/null 2>&1; then pkg_mgr="dnf"; else pkg_mgr="yum"; fi
+        echo "Installing script via $pkg_mgr (requires sudo)..."
+        sudo $pkg_mgr install -y script || { echo "sudo $pkg_mgr install failed" >&2; return 1; }
+    else
+        echo "No supported package manager found (apt/dnf/yum). Please install script manually." >&2
+        return 1
+    fi
+}
+
 ensure_rust_build() {
     # If binary already available, skip
     if command -v wtf >/dev/null 2>&1 || [ -f "$pwd/wtf" ]; then
@@ -155,6 +175,11 @@ install_rust_binary() {
     # expose uninstall helper
     ln -sf "$pwd/uninstall.sh" /usr/local/bin/uninstall.sh || true
 }
+
+if ! ensure_script; then
+    echo "ERROR: Failed to install script. Aborting." >&2
+    exit 1
+fi
 
 # Execute the chosen install flow (no silent fallback)
 case "$install_mode" in
