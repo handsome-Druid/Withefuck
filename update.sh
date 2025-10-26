@@ -3,13 +3,22 @@
 set -e
 
 pwd=$(cd "$(dirname "$0")" && pwd)
+_version="$(cat "$pwd/version.txt" 2>/dev/null || echo "unknown")"
 echo "dir : $pwd"
 if [ -f "$pwd/wtf.py" ]; then
-    echo "Updating wtf.py via git..."
+    echo "Updating wtf-py via git..."
     (cd "$pwd" && git pull origin python) || { echo "git pull failed; aborting." >&2; exit 1; }
+    if [ "$(cat "$pwd/version.txt" 2>/dev/null)" = "$_version" ]; then
+        echo "wtf-py is already up to date (version $_version)."
+        exit 0
+    fi
 elif [ -f "$pwd/Cargo.toml" ]; then
-    echo "Updating Rust source via git..."
+    echo "Updating wtf-rs via git..."
     (cd "$pwd" && git pull origin rust) || { echo "git pull failed; aborting." >&2; exit 1; }
+    if [ "$(cat "$pwd/version.txt" 2>/dev/null)" = "$_version" ]; then
+        echo "wtf-rs is already up to date (version $_version)."
+        exit 0
+    fi
 fi
 
 ensure_rust_build() {
