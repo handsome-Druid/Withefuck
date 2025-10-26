@@ -44,7 +44,9 @@ jobs:
 
           # Determine if commit message is valid: single line, no whitespace, ends with -py
           FIRST_LINE="$(printf '%s' "$MSG" | head -n1)"
-          LINE_COUNT="$(printf '%s' "$MSG" | wc -l | tr -d ' ')"
+          # Count logical lines robustly: append a trailing newline when counting
+          # so a single-line message without a trailing newline counts as 1.
+          LINE_COUNT="$(printf '%s\n' "$MSG" | wc -l | tr -d ' ')"
 
           echo "Head commit SHA: $SHA"
           echo "Head commit first line: $FIRST_LINE"
