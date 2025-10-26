@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   update-version-and-tag:
-    name: Update version.txt and tag when head commit message ends with -py (single-line, no spaces)
+    name: Update version.txt and tag when head commit message ends with -rs (single-line, no spaces)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -42,7 +42,7 @@ jobs:
           MSG='${{ steps.head.outputs.commit_message }}'
           SHA='${{ steps.head.outputs.commit_sha }}'
 
-          # Determine if commit message is valid: single line, no whitespace, ends with -py
+          # Determine if commit message is valid: single line, no whitespace, ends with -rs
           FIRST_LINE="$(printf '%s' "$MSG" | head -n1)"
           # Count logical lines robustly: append a trailing newline when counting
           # so a single-line message without a trailing newline counts as 1.
@@ -58,9 +58,9 @@ jobs:
             exit 0
           fi
 
-          # Check: ends with -py
-          if [[ "$FIRST_LINE" != *-py ]]; then
-            echo "Commit message does not end with -py, skipping."
+          # Check: ends with -rs
+          if [[ "$FIRST_LINE" != *-rs ]]; then
+            echo "Commit message does not end with -rs, skipping."
             exit 0
           fi
 
@@ -78,7 +78,28 @@ jobs:
           git checkout -B python origin/python || git checkout python
           git pull --ff-only origin python || true
 
+          # Normalize: strip leading 'v' if present
+          NORM=${VERSION#v}
+          echo "Updating version.txt"
           echo -n "$VERSION" > version.txt
+          FILE=Cargo.toml
+          if [ ! -f "$FILE" ]; then
+            echo "$FILE not found, aborting" >&2
+            exit 1
+          fi
+
+          # Update the first 'version = "..."' occurrence in [package] section
+          awk -v ver="${NORM}" '
+            BEGIN{in_pkg=0; replaced=0}
+            /^\[package\]/{in_pkg=1; print; next}
+            /^\[/{ if(in_pkg && !/^\[package\]/){ in_pkg=0 } }
+            { if(in_pkg && !replaced && $0 ~ /^version[[:space:]]*=/){
+                  print "version = \"" ver "\""; replaced=1; next
+              }
+              print
+            }
+          ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+
 
           if git status --porcelain | grep -q "^ M version.txt\|^\?\? version.txt"; then
             git config user.name "github-actions[bot]"
