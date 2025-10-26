@@ -1,16 +1,16 @@
-name: Update version.txt on Python tag
+name: Update version.txt and create tag from commit message
 
 on:
   push:
-    tags:
+    branches:
       - '**'
 
 permissions:
   contents: write
 
 jobs:
-  update-version:
-    name: Update version.txt when tag ends with -py
+  update-version-and-tag:
+    name: Update version.txt and tag when head commit message ends with -py (single-line, no spaces)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -19,39 +19,83 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Extract tag
-        id: tag
+      - name: Read head commit message and SHA
+        id: head
+        shell: bash
         run: |
-          echo "GITHUB_REF=$GITHUB_REF"
-          TAG=${GITHUB_REF#refs/tags/}
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          # GITHUB_SHA points to the head commit of the push
+          SHA="${GITHUB_SHA}"
+          MSG="$(git log -1 --pretty=%B "$SHA")"
+          echo "commit_sha=$SHA" >> "$GITHUB_OUTPUT"
+          # Use a multiline output for message to preserve exact content
+          {
+            echo 'commit_message<<EOF'
+            printf '%s\n' "$MSG"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Update version.txt if tag ends with -py
-        if: startsWith(steps.tag.outputs.tag, '\\') == false
+      - name: Update version.txt on python branch and create/push tag
+        shell: bash
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          echo "Detected tag: $TAG"
-          if [[ "$TAG" == *-py ]]; then
-            echo "Tag ends with -py, updating version.txt"
-            # Ensure python branch is available and up-to-date
-            git fetch origin python
-            git checkout python
-            git pull origin python
+          set -euo pipefail
+          MSG='${{ steps.head.outputs.commit_message }}'
+          SHA='${{ steps.head.outputs.commit_sha }}'
 
-            # Write tag into version.txt
-            echo -n "$TAG" > version.txt
+          # Determine if commit message is valid: single line, no whitespace, ends with -py
+          FIRST_LINE="$(printf '%s' "$MSG" | head -n1)"
+          LINE_COUNT="$(printf '%s' "$MSG" | wc -l | tr -d ' ')"
 
-            # Commit only if changed
-            if git status --porcelain | grep -q "version.txt"; then
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add version.txt
-              git commit -m "Update version.txt to $TAG"
-              git push origin python
-              echo "version.txt updated and pushed to python"
-            else
-              echo "version.txt unchanged, nothing to commit"
-            fi
+          echo "Head commit SHA: $SHA"
+          echo "Head commit first line: $FIRST_LINE"
+          echo "Total message lines: $LINE_COUNT"
+
+          # Check: one line only
+          if [ "$LINE_COUNT" != "1" ]; then
+            echo "Commit message is not a single line, skipping."
+            exit 0
+          fi
+
+          # Check: ends with -py
+          if [[ "$FIRST_LINE" != *-py ]]; then
+            echo "Commit message does not end with -py, skipping."
+            exit 0
+          fi
+
+          # Check: contains no whitespace characters (space, tab, etc.)
+          if echo "$FIRST_LINE" | grep -q '[[:space:]]'; then
+            echo "Commit message contains whitespace, skipping."
+            exit 0
+          fi
+
+          VERSION="$FIRST_LINE"
+          echo "Version detected from commit message: $VERSION"
+
+          # Update version.txt on python branch
+          git fetch --no-tags origin python
+          git checkout -B python origin/python || git checkout python
+          git pull --ff-only origin python || true
+
+          echo -n "$VERSION" > version.txt
+
+          if git status --porcelain | grep -q "^ M version.txt\|^\?\? version.txt"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add version.txt
+            git commit -m "Update version.txt to $VERSION"
+            git push origin python
+            echo "version.txt updated and pushed to python"
           else
-            echo "Tag does not end with -py; skipping"
+            echo "version.txt unchanged on python branch; nothing to commit"
+          fi
+
+          # Create tag on the pushed commit (not the python branch commit)
+          git fetch --tags origin || true
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null || \
+             git ls-remote --exit-code --tags origin "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists on local or remote; skipping creation."
+          else
+            git tag -a "$VERSION" "$SHA" -m "$VERSION"
+            git push origin "refs/tags/$VERSION"
+            echo "Created and pushed tag $VERSION at $SHA"
           fi
