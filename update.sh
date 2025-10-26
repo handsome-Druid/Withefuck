@@ -14,7 +14,26 @@ if [ -f "$pwd/wtf.py" ]; then
     fi
 elif [ -f "$pwd/Cargo.toml" ]; then
     echo "Updating wtf-rs via git..."
-    (cd "$pwd" && git pull origin rust) || { echo "git pull failed; aborting." >&2; exit 1; }
+    # Pull latest changes from rust branch and detect if anything changed
+    if cd "$pwd"; then
+        pull_output=$(git pull origin rust 2>&1) || { echo "git pull failed; aborting." >&2; exit 1; }
+        echo "$pull_output"
+        # If repository already up to date, skip further work early
+        if echo "$pull_output" | grep -q "Already up to date"; then
+            echo "wtf-rs is already up to date (version $_version)."
+            exit 0
+        fi
+        # If a fast-forward/merge happened, check if Rust sources or build files changed
+        if git rev-parse -q --verify 'HEAD@{1}' >/dev/null 2>&1; then
+            if ! git diff --name-only 'HEAD@{1}' HEAD | grep -E -q '\\.(rs)$'; then
+                echo "No changes detected in rust code; skipping build."
+                exit 0
+            fi
+        fi
+    else
+        echo "Failed to cd to $pwd; aborting." >&2
+        exit 1
+    fi
     if [ "$(cat "$pwd/version.txt" 2>/dev/null)" = "$_version" ]; then
         echo "wtf-rs is already up to date (version $_version)."
         exit 0
