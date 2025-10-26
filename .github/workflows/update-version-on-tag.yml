@@ -35,7 +35,7 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Update version.txt on python branch and create/push tag
+      - name: Update version.txt on rust branch and create/push tag
         shell: bash
         run: |
           set -euo pipefail
@@ -73,10 +73,10 @@ jobs:
           VERSION="$FIRST_LINE"
           echo "Version detected from commit message: $VERSION"
 
-          # Update version.txt on python branch
-          git fetch --no-tags origin python
-          git checkout -B python origin/python || git checkout python
-          git pull --ff-only origin python || true
+          # Update version.txt on rust branch
+          git fetch --no-tags origin rust
+          git checkout -B rust origin/rust || git checkout rust
+          git pull --ff-only origin rust || true
 
           # Normalize: strip leading 'v' if present
           NORM=${VERSION#v}
@@ -106,13 +106,13 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add version.txt
             git commit -m "Update version.txt to $VERSION"
-            git push origin python
-            echo "version.txt updated and pushed to python"
+            git push origin rust
+            echo "version.txt updated and pushed to rust"
           else
-            echo "version.txt unchanged on python branch; nothing to commit"
+            echo "version.txt unchanged on rust branch; nothing to commit"
           fi
 
-          # Create tag on the pushed commit (not the python branch commit)
+          # Create tag on the pushed commit (not the rust branch commit)
           git fetch --tags origin || true
           if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null || \
              git ls-remote --exit-code --tags origin "$VERSION" >/dev/null 2>&1; then
