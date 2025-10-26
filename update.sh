@@ -25,7 +25,7 @@ elif [ -f "$pwd/Cargo.toml" ]; then
         fi
         # If a fast-forward/merge happened, check if Rust sources or build files changed
         if git rev-parse -q --verify 'HEAD@{1}' >/dev/null 2>&1; then
-            if ! git diff --name-only 'HEAD@{1}' HEAD | grep -E -q '\\.(rs|toml)$'; then
+            if ! git diff --name-only 'HEAD@{1}' HEAD | grep -E -q '\\.(rs)$'; then
                 echo "No changes detected in rust code; skipping build."
                 exit 0
             fi
