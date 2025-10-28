@@ -36,6 +36,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Update version.txt on python branch and create/push tag
+        id: update
         shell: bash
         run: |
           set -euo pipefail
@@ -101,3 +102,32 @@ jobs:
             git push origin "refs/tags/$VERSION"
             echo "Created and pushed tag $VERSION at $SHA"
           fi
+
+          # Expose version for downstream steps
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install packaging dependencies (fpm + rpm)
+        if: steps.update.outputs.version != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential rpm
+          sudo gem install --no-document fpm
+
+      - name: Build .deb and .rpm with fpm
+        if: steps.update.outputs.version != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/build_packages.sh
+          packaging/build_packages.sh
+
+      - name: Create GitHub Release and upload assets
+        if: steps.update.outputs.version != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.update.outputs.version }}
+          name: ${{ steps.update.outputs.version }}
+          files: |
+            packaging/dist/*
