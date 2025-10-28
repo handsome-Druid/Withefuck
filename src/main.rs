@@ -28,13 +28,16 @@ struct Cli {
 
 fn build_prompt(context: &str) -> String {
     format!(
-        "You are given a shell session log. Your task: output ONE corrected shell command that fixes the last command's error.\n\n\
+        "You are given a shell session log. Your task: output ONE shell command.\n\n\
+         Decision:\n\
+         - If the last command failed, output a corrected command that fixes the error.\n\
+         - If the last command succeeded or a clear fix isn't possible, output the most likely next command the user intended to run.\n\n\
          Strict requirements:\n\
-         - Correct flags and syntax (add missing leading dashes for short flags).\n\
-         - Keep the user's intent and minimal changes.\n\
+         - Keep the user's intent and make minimal changes.\n\
+         - Correct flags and syntax (e.g., add missing leading dashes for short flags).\n\
          - Quote paths/args with spaces.\n\
          - Output only the command, no comments, no backticks, no code fences.\n\
-         - If nothing needs fixing or it's ambiguous, output exactly: None\n\n\
+         - If no reasonable next command can be inferred, output exactly: None\n\n\
          Context:\n{}\n",
         context
     )
