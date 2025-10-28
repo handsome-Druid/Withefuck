@@ -49,9 +49,6 @@ cp -a "$PROJECT_ROOT/README.en.md" "$DOC_DIR/" 2>/dev/null || true
 cp -a "$PROJECT_ROOT/LICENSE" "$DOC_DIR/" 2>/dev/null || true
 
 # Ensure a default config template exists in package (preserved on upgrade)
-if [[ -f "$APP_DIR/wtf.json.rpmsave" ]]; then
-  mv "$APP_DIR/wtf.json.rpmsave" "$APP_DIR/wtf.json"
-fi
 if [[ ! -f "$APP_DIR/wtf.json" ]]; then
   echo '{}' > "$APP_DIR/wtf.json"
 fi
@@ -112,7 +109,7 @@ if [ -f /opt/Withefuck/wtf.sh ]; then source /opt/Withefuck/wtf.sh; fi
 EOF
 chmod 0644 "$ZSHRC_D_DIR/withefuck.zsh"
 
-# Post-install message: guide user to open a new shell and run config
+# Post-install: message + Ubuntu/Debian zsh fallback
 POSTINST="$STAGING_ROOT/postinstall.sh"
 cat > "$POSTINST" <<'EOF'
 #!/usr/bin/env bash
@@ -120,7 +117,29 @@ set -e
 
 echo "\nWithefuck 已安装到 /opt/Withefuck，并已为所有交互式 shell 全局启用。";
 echo "- Bash/sh 通过 /etc/profile.d/withefuck.sh 自动加载";
-echo "- Zsh (若系统支持) 通过 /etc/zsh/zshrc.d/withefuck.zsh 自动加载";
+echo "- Zsh 优先通过 /etc/zsh/zshrc.d/withefuck.zsh 自动加载（若系统支持）";
+
+# 为 Ubuntu/Debian 等未启用 zshrc.d 的系统提供回退方案：
+# 如果检测到 /etc/zsh/zshrc 存在且未包含 Withefuck 标记，则追加一段安全的交互式加载片段。
+if command -v zsh >/dev/null 2>&1; then
+  if [ -f /etc/zsh/zshrc ]; then
+    if ! grep -q 'Withefuck BEGIN' /etc/zsh/zshrc 2>/dev/null; then
+      echo "检测到 /etc/zsh/zshrc 未启用 zshrc.d，已写入全局回退片段（含标记）。"
+      umask 022
+      cat >> /etc/zsh/zshrc <<'ZRC'
+# Withefuck BEGIN: global enablement (added by package post-install)
+# 仅在交互式 zsh 中生效，尽量保持无侵入
+if [[ -o interactive ]]; then
+  export POWERLEVEL9K_INSTANT_PROMPT=off
+  [ -f /opt/Withefuck/wtf_profile.sh ] && . /opt/Withefuck/wtf_profile.sh
+  [ -f /opt/Withefuck/wtf.sh ] && . /opt/Withefuck/wtf.sh
+fi
+# Withefuck END
+ZRC
+    fi
+  fi
+fi
+
 echo "\n首次使用请在新开的终端运行：wtf --config 进行配置。"
 echo "(如写入 /opt/Withefuck/wtf.json 失败，请以 root 账号执行该命令)"
 echo "若要在当前会话立即生效，可执行："
@@ -129,7 +148,7 @@ echo
 EOF
 chmod 0755 "$POSTINST"
 
-# Post-remove cleanup: remove runtime leftovers (__pycache__, vendor residue, root logs)
+# Post-remove cleanup: remove runtime leftovers and revert zsh fallback block
 POSTRM="$STAGING_ROOT/postremove.sh"
 cat > "$POSTRM" <<'EOF'
 #!/usr/bin/env bash
@@ -152,6 +171,20 @@ fi
 # Clean root's session logs if present (user-owned logs in /home/*/.shell_logs are not removed)
 if [ -d /root/.shell_logs ]; then
   rm -rf /root/.shell_logs 2>/dev/null || true
+fi
+
+# 移除在 post-install 中可能添加到 /etc/zsh/zshrc 的回退片段
+if [ -f /etc/zsh/zshrc ]; then
+  if grep -q 'Withefuck BEGIN' /etc/zsh/zshrc 2>/dev/null; then
+    tmpfile="$(mktemp)"
+    # 删除标记之间的内容（包含标记行）
+    sed '/Withefuck BEGIN: global enablement (added by package post-install)/,/Withefuck END/d' \
+      /etc/zsh/zshrc > "$tmpfile" 2>/dev/null || true
+    if [ -s "$tmpfile" ]; then
+      cat "$tmpfile" > /etc/zsh/zshrc 2>/dev/null || true
+    fi
+    rm -f "$tmpfile" 2>/dev/null || true
+  fi
 fi
 EOF
 chmod 0755 "$POSTRM"
