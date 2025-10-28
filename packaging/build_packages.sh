@@ -150,9 +150,9 @@ COMMON_ARGS=(
   -s dir
   -C "$pkgroot"
   -n "$NAME"
-  -v "$VERSION"
+  -v "$VERSION-$MODE"
   --description "Withefuck - shell command fixer with LLM"
-  --license "MIT"
+  --license "BSD-3-Clause"
   --url "https://github.com/handsome-Druid/Withefuck"
   --maintainer "Withefuck Maintainers <noreply@example.com>"
 )
@@ -169,7 +169,7 @@ fpm -t deb "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
   --config-files /opt/Withefuck/wtf.json \
   --after-install "$POSTINST" \
   --after-remove "$POSTRM" \
-  --package "$DIST_DIR/${NAME}_${VERSION}_amd64.deb" \
+  --package "$DIST_DIR/${NAME}_${VERSION}_${MODE}_amd64.deb" \
   .
 
 echo "Building .rpm ..."
@@ -178,7 +178,7 @@ fpm -t rpm "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
   --config-files /opt/Withefuck/wtf.json \
   --after-install "$POSTINST" \
   --after-remove "$POSTRM" \
-  --package "$DIST_DIR/${NAME}-${VERSION}-1.x86_64.rpm" \
+  --package "$DIST_DIR/${NAME}-${VERSION}-${MODE}-1.x86_64.rpm" \
   .
 
 echo
