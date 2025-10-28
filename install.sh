@@ -163,11 +163,6 @@ ensure_python_env(){
 install_python_scripts() {
     chmod +x "$pwd/wtf.py"
     chmod +x "$pwd/wtf_script.py" || true
-
-    # Create symlinks in /usr/local/bin
-    ln -sf "$pwd/wtf.py" /usr/local/bin/wtf.py || true
-    ln -sf "$pwd/wtf_script.py" /usr/local/bin/wtf_script.py || true
-    ln -sf "$pwd/uninstall.sh" /usr/local/bin/uninstall.sh || true
 }
 
 install_rust_binary() {

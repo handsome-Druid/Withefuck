@@ -83,7 +83,7 @@ def _wtf_prompt_field(key: str, desc: str, cfg: Dict) -> bool:
     print(f"{key} is required!")
     return False
 
-def _wtf_report_load_error(config: Dict, load_err: Optional[Exception]) -> None:
+def _wtf_report_load_error(load_err: Optional[Exception]) -> None:
     if not load_err:
         return
     if isinstance(load_err, json.JSONDecodeError):
@@ -109,7 +109,7 @@ def update_config() -> None:
     config_path = str(PROJECT_DIR / WTF_CONFIG_FILENAME)
 
     config, existed, load_err = _wtf_load_config(config_path)
-    _wtf_report_load_error(config, load_err)
+    _wtf_report_load_error(load_err)
     _wtf_notify_existing_config(config, existed)
 
     # Fields to prompt the user for.

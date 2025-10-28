@@ -219,3 +219,6 @@ wtf.json.bak
 # rust
 Cargo.lock
 /wtf
+
+# build
+/packaging/.stage
