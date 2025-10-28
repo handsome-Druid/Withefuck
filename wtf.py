@@ -202,7 +202,7 @@ class CommandFixer:
             "You are given a shell session log and a previous AI attempt (if any). "
             "Use the context to produce a corrected shell command that fixes the error."
             "Or suggest the next command to achieve the user's goal."
-            "Only correct the last command in the context.\n\n"
+            "Only correct or suggest the last command in the context.\n\n"
             f"Context:\n{full_context}\n\n"
             "Only return the corrected command or suggest command ,do not include any explanation. "
             "If the command is correct or cannot be fixed, return 'None'."
