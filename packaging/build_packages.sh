@@ -152,7 +152,7 @@ COMMON_ARGS=(
   -n "$NAME"
   -v "$VERSION-$MODE"
   --description "Withefuck - shell command fixer with LLM"
-  --license "MIT"
+  --license "BSD-3-Clause"
   --url "https://github.com/handsome-Druid/Withefuck"
   --maintainer "Withefuck Maintainers <noreply@example.com>"
 )
