@@ -36,6 +36,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Update version.txt on rust branch and create/push tag
+        id: update
         shell: bash
         run: |
           set -euo pipefail
@@ -101,10 +102,10 @@ jobs:
           ' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
 
 
-          if git status --porcelain | grep -q "^ M version.txt\|^\?\? version.txt"; then
+          if git status --porcelain | grep -q "^ M version.txt\|^\?\? version.txt\|^ M Cargo.toml"; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add version.txt
+            git add version.txt Cargo.toml
             git commit -m "Update version.txt to $VERSION"
             git push origin rust
             echo "version.txt updated and pushed to rust"
@@ -122,3 +123,40 @@ jobs:
             git push origin "refs/tags/$VERSION"
             echo "Created and pushed tag $VERSION at $SHA"
           fi
+
+          # Expose version for downstream steps
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Rust toolchain
+        if: steps.update.outputs.version != ''
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install packaging dependencies (fpm + rpm)
+        if: steps.update.outputs.version != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential rpm
+          sudo gem install --no-document fpm
+
+      - name: Build release binary
+        if: steps.update.outputs.version != ''
+        run: cargo build --release
+
+      - name: Build .deb and .rpm with fpm
+        if: steps.update.outputs.version != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x packaging/build_packages.sh
+          packaging/build_packages.sh
+
+      - name: Create GitHub Release and upload assets
+        if: steps.update.outputs.version != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.update.outputs.version }}
+          name: ${{ steps.update.outputs.version }}
+          files: |
+            packaging/dist/*
