@@ -59,13 +59,33 @@ if [[ "$MODE" == "py" ]]; then
   cp -a "$PROJECT_ROOT/wtf_script.py" "$APP_DIR/" 2>/dev/null || true
 else
   # Rust mode: include compiled binary into /opt/Withefuck only
-  if [[ -x "$PROJECT_ROOT/target/release/wtf" ]]; then
-    install -m 0755 "$PROJECT_ROOT/target/release/wtf" "$APP_DIR/wtf"
+  # Prefer an explicit environment override, then musl target, then default target, then project root
+  BIN=""
+  if [[ -n "${WTF_BIN:-}" && -x "${WTF_BIN}" ]]; then
+    BIN="${WTF_BIN}"
+  elif [[ -x "$PROJECT_ROOT/target/x86_64-unknown-linux-musl/release/wtf" ]]; then
+    BIN="$PROJECT_ROOT/target/x86_64-unknown-linux-musl/release/wtf"
+  elif [[ -x "$PROJECT_ROOT/target/release/wtf" ]]; then
+    BIN="$PROJECT_ROOT/target/release/wtf"
   elif [[ -x "$PROJECT_ROOT/wtf" ]]; then
-    install -m 0755 "$PROJECT_ROOT/wtf" "$APP_DIR/wtf"
-  else
-    echo "Rust mode selected but no compiled 'wtf' binary found in target/release or project root." >&2
+    BIN="$PROJECT_ROOT/wtf"
+  fi
+
+  if [[ -z "$BIN" ]]; then
+    echo "Rust mode selected but no compiled 'wtf' binary found." >&2
+    echo "Checked: \n  $PROJECT_ROOT/target/x86_64-unknown-linux-musl/release/wtf\n  $PROJECT_ROOT/target/release/wtf\n  $PROJECT_ROOT/wtf" >&2
+    echo "Hint: set WTF_BIN=/abs/path/to/wtf to override." >&2
     exit 1
+  fi
+
+  install -m 0755 "$BIN" "$APP_DIR/wtf"
+
+  # Post-copy size optimizations (best-effort): strip and upx if available
+  if command -v strip >/dev/null 2>&1; then
+    strip --strip-all "$APP_DIR/wtf" || true
+  fi
+  if command -v upx >/dev/null 2>&1; then
+    upx -9 "$APP_DIR/wtf" || true
   fi
 fi
 
@@ -157,10 +177,15 @@ COMMON_ARGS=(
   --maintainer "Withefuck Maintainers <noreply@example.com>"
 )
 
-# dependencies common to both modes
+# dependencies
+# - util-linux: for 'script' and other common tools
+# - python3: only for py mode
+# - ca-certificates: for rs mode when using reqwest+rustls with native roots
 DEPENDS=(--depends util-linux)
 if [[ "$MODE" == "py" ]]; then
   DEPENDS+=(--depends python3)
+else
+  DEPENDS+=(--depends ca-certificates)
 fi
 
 echo "Building .deb ..."

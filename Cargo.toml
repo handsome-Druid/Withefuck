@@ -7,11 +7,15 @@ description = "Withefuck: fix your last shell command using an LLM (Rust rewrite
 license = "BSD 3-Clause"
 
 [dependencies]
-clap = { version = "4.5.50", features = ["derive"] }
-serde = { version = "1.0.228", features = ["derive"] }
+clap = { version = "4.5.50", default-features = false, features = ["std", "derive", "help", "usage"] }
+
+serde = { version = "1.0.228", default-features = false, features = ["std", "derive"] }
 serde_json = "1.0.145"
-regex = "1.12.2"
-reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+
+regex = { version = "1.12.2", default-features = false, features = ["std"] }
+
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "json", "rustls-tls-native-roots"] }
+
 dirs = "6.0.0"
 atty = "0.2.14"
 
@@ -20,3 +24,4 @@ codegen-units = 1
 lto = true
 opt-level = "z"
 strip = true
+panic = "abort"

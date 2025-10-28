@@ -131,6 +131,10 @@ jobs:
         if: steps.update.outputs.version != ''
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install cross (for musl static builds)
+        if: steps.update.outputs.version != ''
+        run: cargo install cross --locked
+
       - name: Install packaging dependencies (fpm + rpm)
         if: steps.update.outputs.version != ''
         shell: bash
@@ -138,11 +142,15 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y ruby ruby-dev build-essential rpm
+          # Install upx (package name varies by Ubuntu release)
+          if ! sudo apt-get install -y upx; then
+            sudo apt-get install -y upx-ucl || true
+          fi
           sudo gem install --no-document fpm
 
-      - name: Build release binary
+      - name: Build release binary (musl static)
         if: steps.update.outputs.version != ''
-        run: cargo build --release
+        run: cross build --release --target x86_64-unknown-linux-musl
 
       - name: Build .deb and .rpm with fpm
         if: steps.update.outputs.version != ''
@@ -150,6 +158,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x packaging/build_packages.sh
+          # Packaging script will automatically pick musl binary if present
           packaging/build_packages.sh
 
       - name: Create GitHub Release and upload assets
