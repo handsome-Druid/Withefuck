@@ -199,13 +199,17 @@ class CommandFixer:
 
     def _build_prompt(self, full_context: str) -> str:
         return (
-            "You are given a shell session log and a previous AI attempt (if any). "
-            "Use the context to produce a corrected shell command that fixes the error."
-            "Or suggest the next command to achieve the user's goal."
-            "Only correct or suggest the last command in the context.\n\n"
-            f"Context:\n{full_context}\n\n"
-            "Only return the corrected command or suggest command ,do not include any explanation. "
-            "If the command is correct or cannot be fixed, return 'None'."
+            "You are given a shell session log. Your task: output ONE shell command.\n\n"
+            "         Decision:\n"
+            "         - If the last command failed, output a corrected command that fixes the error.\n"
+            "         - If the last command succeeded or a clear fix isn't possible, output the most likely next command the user intended to run.\n\n"
+            "         Strict requirements:\n"
+            "         - Keep the user's intent and make minimal changes.\n"
+            "         - Correct flags and syntax (e.g., add missing leading dashes for short flags).\n"
+            "         - Quote paths/args with spaces.\n"
+            "         - Output only the command, no comments, no backticks, no code fences.\n"
+            "         - If no reasonable next command can be inferred, output exactly: None\n\n"
+            f"         Context:\n{full_context}\n"
         )
 
     def _call_llm_api(self, prompt: str) -> Optional[str]:
