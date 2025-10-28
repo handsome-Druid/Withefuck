@@ -20,16 +20,6 @@ _detect_script_path() {
 _detect_script_path
 unset -f _detect_script_path
 
-  # If running under ash, fallback SCRIPT_DIR to /usr/local/bin (ash cannot
-  # reliably determine sourced script path in the same way bash/zsh do).
-  if [ -n "${ASH_VERSION:-}" ] || [ "$(basename "${SHELL:-}")" = "ash" ]; then
-    SCRIPT_DIR="/usr/local/bin"
-  fi
-
-  if echo $0 | grep -q "dash"; then
-    SCRIPT_DIR="/usr/local/bin"
-  fi
-
 # Decide runtime mode strictly by version.txt suffix: "*-py" or "*-rs"
 _WTF_VERSION_FILE="${SCRIPT_DIR}/version.txt"
 _WTF_VERSION=""
@@ -43,30 +33,44 @@ case "$_WTF_VERSION" in
   *-py) _WTF_MODE="py" ;;
 esac
 
-# Fixed rust binary path to use under -rs mode
-WTF_BIN="/usr/local/bin/wtf"
+if [ "$_WTF_MODE" = "rs" ]; then
+  WTF_BIN="${SCRIPT_DIR}/wtf" || echo "${SCRIPT_DIR}/wtf not found"
+elif [ "$_WTF_MODE" = "py" ]; then
+  WTF_BIN="${SCRIPT_DIR}/wtf.py" || echo "${SCRIPT_DIR}/wtf.py not found"
+  if [ ! -f ${SCRIPT_DIR}/wtf_script.py ]; then
+    echo "Warning: wtf_script.py not found in ${SCRIPT_DIR}. wtf.py would not work without it." >&2
+  fi
+fi
+
 
 # Define shell integration function (available when this file is sourced).
 _wtf_define_shell_func() {
   wtf() {
     # Validate version marker at runtime
     if [ "$_WTF_MODE" = "invalid" ]; then
-      echo "Invalid or missing version.txt. Expected version to end with -py or -rs. Please reinstall correctly." >&2
+      echo "Invalid or missing version.txt. Please don't tamper with it." >&2
       return 1
     fi
 
-    # If user provided args, forward them. Special-case --config to prefer
-    # installed `withefuck` executable if available.
+    # If user provided args, forward them.
     if [ "$#" -gt 0 ]; then
-      # Always keep uninstall handled here
       for a in "$@"; do
         if [ "$a" = "--uninstall" ]; then
+          if [ ! -f "${SCRIPT_DIR}/uninstall.sh" ]; then
+            echo "Unknown argument: $1"
+            return $?
+          fi
           "${SCRIPT_DIR}/uninstall.sh"
           return $?
         elif [ "$a" = "--update" ]; then
+          if [ ! -f "${SCRIPT_DIR}/update.sh" ]; then
+            echo "Unknown argument: $1"
+            return $?
+          fi
           "${SCRIPT_DIR}/update.sh"
           return $?
         elif [ "$a" = "--help" ] || [ "$a" = "-h" ]; then
+          if [ -f "${SCRIPT_DIR}/uninstall.sh" ] && [ -f "${SCRIPT_DIR}/update.sh" ]; then
             echo "Withefuck - Command line tool to fix your previous console command."
             echo
             echo "Usage:"
@@ -80,6 +84,19 @@ _wtf_define_shell_func() {
             echo "  -h, --help         Show this help text"
             echo "  -V, --version      Show version"
             return 0
+          else
+            echo "Withefuck - Command line tool to fix your previous console command."
+            echo
+            echo "Usage:"
+            echo "  wtf                Suggest fix for last command"
+            echo
+            echo "Options:"
+            echo "  --config           Configure Withefuck"
+            echo "  --logs             View shell logs"
+            echo "  -h, --help         Show this help text"
+            echo "  -V, --version      Show version"
+            return 0
+          fi
         elif [ "$a" = "--version" ] || [ "$a" = "-V" ]; then
           if [ -f "${SCRIPT_DIR}/version.txt" ]; then
             echo -n "wtf "
@@ -93,59 +110,35 @@ _wtf_define_shell_func() {
         fi
       done
 
-      if [ "$_WTF_MODE" = "rs" ]; then
-        if [ ! -x "$WTF_BIN" ]; then
-          echo "Rust mode selected by version.txt but /usr/local/bin/wtf is not installed or not executable." >&2
-          return 1
-        fi
-        if [ "$1" = "--config" ]; then
-          # Prefer installed withefuck for config in rust mode
-          "$WTF_BIN" --config
+      for a in "$@"; do
+        if [ "$a" = "--config" ]; then
+          "${WTF_BIN}" --config
           return $?
         fi
-        if [ "$1" = "--logs" ]; then
-          # Prefer installed withefuck for logs in rust mode
-          "$WTF_BIN" --logs
-          return $?
-        fi
-        echo "Unknown argument: $1"
-        return $?
-      else
-        # Python mode: handle known options
-        for a in "$@"; do
-          if [ "$a" = "--config" ]; then
-            "${SCRIPT_DIR}/wtf.py" --config
+        if [ "$a" = "--logs" ]; then
+          if [ "$_WTF_MODE" = "rs" ]; then
+            "${WTF_BIN}" --logs
             return $?
-          fi
-          if [ "$a" = "--logs" ]; then
+          else
             "${SCRIPT_DIR}/wtf_script.py"
             return $?
           fi
-        done
-        echo "Unknown argument: $1"
-        return 1
-      fi
+        fi
+      done
+      echo "Unknown argument: $1"
+      return 1
     fi
 
-    if [ "$_WTF_MODE" = "rs" ]; then
-      # Rust mode: delegate behavior entirely to binary
-      if [ ! -x "$WTF_BIN" ]; then
-        echo "Rust mode selected by version.txt but /usr/local/bin/wtf is not installed or not executable." >&2
-        return 1
-      fi
-    else
-      # Python mode behavior (existing suggest + confirm flow)
-      # Ensure the wrapper script is executable
-      if [ ! -x "${SCRIPT_DIR}/wtf.py" ] && [ -f "${SCRIPT_DIR}/wtf.py" ]; then
-        chmod +x "${SCRIPT_DIR}/wtf.py" || true
-      fi
+
+    if [ ! -x "$WTF_BIN" ] && [ -f "$WTF_BIN" ]; then
+      chmod +x "$WTF_BIN" || true
     fi
-      # Call the wrapper to get suggestion (format: <cmd>)
-    if [ "$_WTF_MODE" = "rs" ]; then
-      raw_out="$("$WTF_BIN" --suggest 2>/dev/null || true)"
-    else
-      raw_out="$("${SCRIPT_DIR}/wtf.py" --suggest 2>/dev/null || true)"
+    if [ ! -x "${SCRIPT_DIR}/wtf_script.py" ] && [ -f "${SCRIPT_DIR}/wtf_script.py" ]; then
+      chmod +x "${SCRIPT_DIR}/wtf_script.py" || true
     fi
+
+    raw_out="$("$WTF_BIN" --suggest 2>/dev/null || true)"
+
     out="$(printf '%s' "$raw_out" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
     if [ -z "$out" ]; then
