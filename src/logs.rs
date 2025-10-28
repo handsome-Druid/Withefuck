@@ -80,16 +80,36 @@ fn block_to_cmd_out(block: &[String]) -> Option<(String, String)> {
 
     // Helper: does a line contain 'wtf' not followed by specific options?
     fn contains_wtf_without_help_opts(line: &str) -> bool {
-        // Find 'wtf' as a whole word anywhere in the line, capture what's after it on the same line
-        let re_wtf = Regex::new(r"(?i)\bwtf\b(.*)$").unwrap();
-        if let Some(caps) = re_wtf.captures(line) {
-            let rest = caps.get(1).map(|m| m.as_str()).unwrap_or("");
-            // If the immediate args are one of the allowed info flags, do NOT treat specially
-            let re_allowed = Regex::new(r"(?i)^[ \t]*(--help|-h|-V|--version|--config|--update|--uninstall)\b").unwrap();
-            !re_allowed.is_match(rest)
-        } else {
-            false
+        // ASCII-only detection to avoid requiring unicode regex features.
+        // Find 'wtf' as a whole word and inspect the immediate rest of the line.
+        let lower = line.to_ascii_lowercase();
+        let bytes = lower.as_bytes();
+        let target = b"wtf";
+
+        // helper: ASCII word char
+        fn is_word(b: u8) -> bool { b.is_ascii_alphanumeric() || b == b'_' }
+
+        let mut i = 0;
+        while i + target.len() <= bytes.len() {
+            if &bytes[i..i+target.len()] == target {
+                let left_ok = i == 0 || !is_word(bytes[i-1]);
+                let j = i + target.len();
+                let right_ok = j == bytes.len() || !is_word(bytes[j]);
+                if left_ok && right_ok {
+                    // rest of original string starting at j
+                    let rest = &lower[j..];
+                    let rest_trim = rest.trim_start_matches([' ', '\t']);
+                    // allowed leading flags that should NOT trigger special handling
+                    let allowed = ["--help","-h","-v","--version","--config","--update","--uninstall"]; // note: -V treated same as -v
+                    let is_allowed = allowed.iter().any(|p| rest_trim.starts_with(p));
+                    return !is_allowed;
+                }
+                i += 1; // continue searching after this position
+            } else {
+                i += 1;
+            }
         }
+        false
     }
 
     // Start building command and decide where output begins
