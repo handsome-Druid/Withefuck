@@ -49,9 +49,6 @@ cp -a "$PROJECT_ROOT/README.en.md" "$DOC_DIR/" 2>/dev/null || true
 cp -a "$PROJECT_ROOT/LICENSE" "$DOC_DIR/" 2>/dev/null || true
 
 # Ensure a default config template exists in package (preserved on upgrade)
-if [[ -f "$APP_DIR/wtf.json.rpmsave" ]]; then
-  mv "$APP_DIR/wtf.json.rpmsave" "$APP_DIR/wtf.json"
-fi
 if [[ ! -f "$APP_DIR/wtf.json" ]]; then
   echo '{}' > "$APP_DIR/wtf.json"
 fi
