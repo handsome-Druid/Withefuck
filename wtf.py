@@ -128,7 +128,7 @@ def update_config() -> None:
     _wtf_save_and_report(config_path, config)
 
 class CommandFixer:
-    def __init__(self, api_key: str, api_endpoint: str, model: str, history_count: int = 5, temperature: float = 0.0):
+    def __init__(self, api_key: str, api_endpoint: str, model: str, history_count: int = 3, temperature: float = 0.0):
         """Initialize the command fixer
         Args:
             api_key: LLM API key
@@ -258,13 +258,13 @@ def validate_config(config: dict) -> Tuple[str, str, str, int, float]:
     api_key = config.get("api_key")
     api_endpoint = config.get("api_endpoint")
     model = config.get("model")
-    history_count = config.get("history_count", 5)
+    history_count = config.get("history_count", 3)
     temperature = config.get("temperature", 0)
     # coerce types
     try:
         history_count = int(history_count)
     except Exception:
-        history_count = 5
+        history_count = 3
     try:
         temperature = float(temperature)
     except Exception:
@@ -306,12 +306,12 @@ def _handle_suggest_mode():
     api_key = cfg.get("api_key")
     api_endpoint = cfg.get("api_endpoint")
     model = cfg.get("model")
-    history_count = cfg.get("history_count", 5)
+    history_count = cfg.get("history_count", 3)
     temperature = cfg.get("temperature", 0)
     try:
         history_count = int(history_count)
     except Exception:
-        history_count = 5
+        history_count = 3
     try:
         temperature = float(temperature)
     except Exception:

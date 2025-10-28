@@ -196,7 +196,7 @@ def get_latest_log():
         raise FileNotFoundError("No script log found. Please run some commands first.")
     return files[-1]
 
-def get_last_n_commands(n=5):
+def get_last_n_commands(n=3):
     log_path = get_latest_log()
     text = log_path.read_text(errors="ignore")
     text = clean_text(text)
