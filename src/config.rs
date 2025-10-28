@@ -17,7 +17,7 @@ pub struct Config {
     pub temperature: f32,
 }
 
-fn default_history_count() -> usize { 5 }
+fn default_history_count() -> usize { 3 }
 
 impl Config {
     pub fn validate(&self) -> Result<(), String> {

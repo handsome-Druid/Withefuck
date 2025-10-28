@@ -49,9 +49,10 @@ fn clean_text(text: &str) -> String {
 
 fn hook_regexes() -> Vec<Regex> {
     // bash ASCII divider containing the literal message
-    let bash_ts = Regex::new(r"^-+\s+Shell log started\.\s+-+$").unwrap();
+    // Avoid using \s to keep unicode-perl feature unnecessary; use explicit ASCII whitespace
+    let bash_ts = Regex::new(r"^-+[ \t]+Shell log started\.[ \t]+-+$").unwrap();
     // zsh flexible: optional rounded or right arrow around the literal message
-    let zsh_ts = Regex::new(r"^\s*(?:\s*)?Shell log started\.(?:\s*|\s*)?\s*$").unwrap();
+    let zsh_ts = Regex::new(r"^[ \t]*(?:[ \t]*)?Shell log started\.(?:[ \t]*|[ \t]*)?[ \t]*$").unwrap();
     vec![zsh_ts, bash_ts]
 }
 
@@ -84,7 +85,7 @@ fn block_to_cmd_out(block: &[String]) -> Option<(String, String)> {
         if let Some(caps) = re_wtf.captures(line) {
             let rest = caps.get(1).map(|m| m.as_str()).unwrap_or("");
             // If the immediate args are one of the allowed info flags, do NOT treat specially
-            let re_allowed = Regex::new(r"(?i)^\s*(--help|-h|-V|--version|--config|--update|--uninstall)\b").unwrap();
+            let re_allowed = Regex::new(r"(?i)^[ \t]*(--help|-h|-V|--version|--config|--update|--uninstall)\b").unwrap();
             !re_allowed.is_match(rest)
         } else {
             false
@@ -110,7 +111,7 @@ fn block_to_cmd_out(block: &[String]) -> Option<(String, String)> {
 }
 
 fn filter_wtf_commands_inline(results: &[(String, String)]) -> Vec<(String, String)> {
-    let tail_re = Regex::new(r"(wtf(?:\s+--logs)?)\s*$").unwrap();
+    let tail_re = Regex::new(r"(wtf(?:[ \t]+--logs)?)[ \t]*$").unwrap();
     let mut filtered: Vec<(String, String)> = Vec::new();
     for (cmd, out) in results.iter() {
         let s = cmd.trim();

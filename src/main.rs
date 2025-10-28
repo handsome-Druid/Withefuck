@@ -84,12 +84,12 @@ fn main() {
     }
 
     if cli.logs {
-        let hist_n = if cfg.history_count == 0 { 5 } else { cfg.history_count };
+        let hist_n = if cfg.history_count == 0 { 3 } else { cfg.history_count };
         logs::print_last_commands(hist_n);
         return;
     }
 
-    let hist_n = if cfg.history_count == 0 { 5 } else { cfg.history_count };
+    let hist_n = if cfg.history_count == 0 { 3 } else { cfg.history_count };
     let context = previous_commands_context(hist_n);
     let prompt = build_prompt(&context);
     let client = llm::LlmClient::new(
