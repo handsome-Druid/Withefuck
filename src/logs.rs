@@ -100,7 +100,7 @@ fn block_to_cmd_out(block: &[String]) -> Option<(String, String)> {
                     let rest = &lower[j..];
                     let rest_trim = rest.trim_start_matches([' ', '\t']);
                     // allowed leading flags that should NOT trigger special handling
-                    let allowed = ["--help","-h","-v","--version","--config","--update","--uninstall"]; // note: -V treated same as -v
+                    let allowed = ["--help","-h","-v","-V","--version","--config","--update","--uninstall"]; // accept both -v and -V
                     let is_allowed = allowed.iter().any(|p| rest_trim.starts_with(p));
                     return !is_allowed;
                 }
