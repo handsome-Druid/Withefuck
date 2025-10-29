@@ -48,10 +48,6 @@ cp -a "$PROJECT_ROOT/README.md" "$DOC_DIR/" 2>/dev/null || true
 cp -a "$PROJECT_ROOT/README.en.md" "$DOC_DIR/" 2>/dev/null || true
 cp -a "$PROJECT_ROOT/LICENSE" "$DOC_DIR/" 2>/dev/null || true
 
-# Ensure a default config template exists in package (preserved on upgrade)
-if [[ ! -f "$APP_DIR/wtf.json" ]]; then
-  echo '{}' > "$APP_DIR/wtf.json"
-fi
 
 # Python vs Rust payloads
 if [[ "$MODE" == "py" ]]; then
@@ -95,6 +91,10 @@ cat > "$PROFILED_DIR/withefuck.sh" <<'EOF'
 # Only proceed in interactive shells
 case "$-" in *i*) ;; *) return 0 2>/dev/null || exit 0 ;; esac
 
+# Prevent double sourcing (when login shell and rc source multiple times)
+[ -n "${__WITHEFUCK_SH_LOADED:-}" ] && return 0 2>/dev/null || true
+__WITHEFUCK_SH_LOADED=1
+
 [ -f /opt/Withefuck/wtf_profile.sh ] && . /opt/Withefuck/wtf_profile.sh
 [ -f /opt/Withefuck/wtf.sh ] && . /opt/Withefuck/wtf.sh
 EOF
@@ -104,6 +104,9 @@ chmod 0644 "$PROFILED_DIR/withefuck.sh"
 cat > "$ZSHRC_D_DIR/withefuck.zsh" <<'EOF'
 # Withefuck global enablement for zsh
 export POWERLEVEL9K_INSTANT_PROMPT=off
+# Prevent double sourcing (some distros load from multiple paths)
+if [[ -n "${__WITHEFUCK_SH_LOADED:-}" ]]; then return; fi
+__WITHEFUCK_SH_LOADED=1
 if [ -f /opt/Withefuck/wtf_profile.sh ]; then source /opt/Withefuck/wtf_profile.sh; fi
 if [ -f /opt/Withefuck/wtf.sh ]; then source /opt/Withefuck/wtf.sh; fi
 EOF
@@ -115,22 +118,27 @@ cat > "$POSTINST" <<'EOF'
 #!/usr/bin/env bash
 set -e
 
-echo "\nWithefuck 已安装到 /opt/Withefuck，并已为所有交互式 shell 全局启用。";
-echo "- Bash/sh 通过 /etc/profile.d/withefuck.sh 自动加载";
-echo "- Zsh 优先通过 /etc/zsh/zshrc.d/withefuck.zsh 自动加载（若系统支持）";
+echo "Withefuck has been installed to /opt/Withefuck and globally enabled for all interactive shells.";
+echo "- Bash/sh loads automatically via /etc/profile.d/withefuck.sh";
+echo "- Zsh loads via /etc/zsh/zshrc.d/withefuck.zsh (if supported)";
 
-# 为 Ubuntu/Debian 等未启用 zshrc.d 的系统提供回退方案：
-# 如果检测到 /etc/zsh/zshrc 存在且未包含 Withefuck 标记，则追加一段安全的交互式加载片段。
+# Provide a fallback for Ubuntu/Debian systems where zshrc.d is not enabled:
+# If /etc/zsh/zshrc exists and doesn't contain the Withefuck marker, append a safe interactive loading snippet.
 if command -v zsh >/dev/null 2>&1; then
   if [ -f /etc/zsh/zshrc ]; then
     if ! grep -q 'Withefuck BEGIN' /etc/zsh/zshrc 2>/dev/null; then
-      echo "检测到 /etc/zsh/zshrc 未启用 zshrc.d，已写入全局回退片段（含标记）。"
+  echo "Detected that /etc/zsh/zshrc does not enable zshrc.d; wrote global fallback snippet (with markers)."
       umask 022
       cat >> /etc/zsh/zshrc <<'ZRC'
 # Withefuck BEGIN: global enablement (added by package post-install)
-# 仅在交互式 zsh 中生效，尽量保持无侵入
+# Only takes effect in interactive zsh; keep minimal intrusion
 if [[ -o interactive ]]; then
   export POWERLEVEL9K_INSTANT_PROMPT=off
+  # Prevent double sourcing
+  if [[ -n "${__WITHEFUCK_SH_LOADED:-}" ]]; then
+    return
+  fi
+  __WITHEFUCK_SH_LOADED=1
   [ -f /opt/Withefuck/wtf_profile.sh ] && . /opt/Withefuck/wtf_profile.sh
   [ -f /opt/Withefuck/wtf.sh ] && . /opt/Withefuck/wtf.sh
 fi
@@ -140,10 +148,10 @@ ZRC
   fi
 fi
 
-echo "\n首次使用请在新开的终端运行：wtf --config 进行配置。"
-echo "(如写入 /opt/Withefuck/wtf.json 失败，请以 root 账号执行该命令)"
-echo "若要在当前会话立即生效，可执行："
-echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh"
+echo "For first use, run \"wtf --config\" in a new terminal to configure."
+echo "(If writing to /opt/Withefuck/wtf.json fails, run the command as root)"
+echo "To apply immediately in the current session, run:"
+echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh" && wtf --config
 echo
 EOF
 chmod 0755 "$POSTINST"
@@ -173,11 +181,11 @@ if [ -d /root/.shell_logs ]; then
   rm -rf /root/.shell_logs 2>/dev/null || true
 fi
 
-# 移除在 post-install 中可能添加到 /etc/zsh/zshrc 的回退片段
+# Remove the fallback snippet that may have been added to /etc/zsh/zshrc in post-install
 if [ -f /etc/zsh/zshrc ]; then
   if grep -q 'Withefuck BEGIN' /etc/zsh/zshrc 2>/dev/null; then
     tmpfile="$(mktemp)"
-    # 删除标记之间的内容（包含标记行）
+    # Delete everything between the markers (including marker lines)
     sed '/Withefuck BEGIN: global enablement (added by package post-install)/,/Withefuck END/d' \
       /etc/zsh/zshrc > "$tmpfile" 2>/dev/null || true
     if [ -s "$tmpfile" ]; then
@@ -227,7 +235,6 @@ fi
 echo "Building .deb ..."
 fpm -t deb "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
   --deb-no-default-config-files \
-  --config-files /opt/Withefuck/wtf.json \
   --after-install "$POSTINST" \
   --after-remove "$POSTRM" \
   --package "$DIST_DIR/${NAME}_${VERSION}_${MODE}_amd64.deb" \
@@ -236,7 +243,6 @@ fpm -t deb "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
 echo "Building .rpm ..."
 fpm -t rpm "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
   --rpm-os linux \
-  --config-files /opt/Withefuck/wtf.json \
   --after-install "$POSTINST" \
   --after-remove "$POSTRM" \
   --package "$DIST_DIR/${NAME}-${VERSION}-${MODE}-1.x86_64.rpm" \
