@@ -180,6 +180,14 @@ if ! ensure_script; then
     exit 1
 fi
 
+# Fish shell integration: install conf.d snippets and function
+FISH_CONF_DIR="$HOME/.config/fish/conf.d"
+mkdir -p "$FISH_CONF_DIR" 2>/dev/null || true
+if [ -d "$FISH_CONF_DIR" ]; then
+    ln -sf "$pwd/wtf.fish" "$FISH_CONF_DIR/wtf.fish"
+    ln -sf "$pwd/wtf_profile.fish" "$FISH_CONF_DIR/wtf_profile.fish"
+fi
+
 # Execute the chosen install flow (no silent fallback)
 case "$install_mode" in
   rust)
@@ -275,3 +283,5 @@ echo
 echo "      . ~/.wtf_profile.sh && . ~/.wtf.sh"
 echo
 echo "or restart your terminal session to start logging."
+echo
+echo "For fish shell, restart fish or run: exec fish"

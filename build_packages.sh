@@ -37,15 +37,11 @@ APP_DIR="$pkgroot/opt/Withefuck"
 DOC_DIR="$pkgroot/usr/share/doc/$NAME"
 PROFILED_DIR="$pkgroot/etc/profile.d"
 ZSHRC_D_DIR="$pkgroot/etc/zsh/zshrc.d"
-FISH_VENDOR_DIR="$pkgroot/usr/share/fish/vendor_conf.d"
-mkdir -p "$APP_DIR" "$DOC_DIR" "$PROFILED_DIR" "$ZSHRC_D_DIR" "$FISH_VENDOR_DIR"
+mkdir -p "$APP_DIR" "$DOC_DIR" "$PROFILED_DIR" "$ZSHRC_D_DIR"
 
 # Copy core project files to /opt/Withefuck
 cp -a "$PROJECT_ROOT/wtf.sh" "$APP_DIR/"
 cp -a "$PROJECT_ROOT/wtf_profile.sh" "$APP_DIR/"
-# fish scripts (if present)
-cp -a "$PROJECT_ROOT/wtf.fish" "$APP_DIR/" 2>/dev/null || true
-cp -a "$PROJECT_ROOT/wtf_profile.fish" "$APP_DIR/" 2>/dev/null || true
 cp -a "$PROJECT_ROOT/version.txt" "$APP_DIR/"
 cp -a "$PROJECT_ROOT/vendor" "$APP_DIR/" 2>/dev/null || true
 cp -a "$PROJECT_ROOT/README.md" "$DOC_DIR/" 2>/dev/null || true
@@ -116,21 +112,7 @@ if [ -f /opt/Withefuck/wtf.sh ]; then source /opt/Withefuck/wtf.sh; fi
 EOF
 chmod 0644 "$ZSHRC_D_DIR/withefuck.zsh"
 
-# Fish global enablement (vendor conf.d)
-cat > "$FISH_VENDOR_DIR/withefuck.fish" <<'EOF'
-# Withefuck global enablement for fish
-if status is-interactive
-  if test -f /opt/Withefuck/wtf_profile.fish
-    source /opt/Withefuck/wtf_profile.fish
-  end
-  if test -f /opt/Withefuck/wtf.fish
-    source /opt/Withefuck/wtf.fish
-  end
-end
-EOF
-chmod 0644 "$FISH_VENDOR_DIR/withefuck.fish"
-
-# Post-install message: guide user to open a new shell and run config
+# Post-install: message + Ubuntu/Debian zsh fallback
 POSTINST="$STAGING_ROOT/postinstall.sh"
 cat > "$POSTINST" <<'EOF'
 #!/usr/bin/env bash
@@ -170,14 +152,6 @@ echo "For first use, run \"wtf --config\" in a new terminal to configure."
 echo "(If writing to /opt/Withefuck/wtf.json fails, run the command as root)"
 echo "To apply immediately in the current session, run:"
 echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh" && wtf --config
-echo "\nWithefuck 已安装到 /opt/Withefuck，并已为所有交互式 shell 全局启用。";
-echo "- Bash/sh 通过 /etc/profile.d/withefuck.sh 自动加载";
-echo "- Zsh (若系统支持) 通过 /etc/zsh/zshrc.d/withefuck.zsh 自动加载";
-echo "- Fish (若已安装) 通过 /usr/share/fish/vendor_conf.d/withefuck.fish 自动加载";
-echo "\n首次使用请在新开的终端运行：wtf --config 进行配置。"
-echo "(如写入 /opt/Withefuck/wtf.json 失败，请以 root 账号执行该命令)"
-echo "若要在当前会话立即生效，可执行："
-echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh"
 echo
 EOF
 chmod 0755 "$POSTINST"

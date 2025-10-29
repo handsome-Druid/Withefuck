@@ -11,6 +11,10 @@ rm -rf ~/.wtf_profile.sh
 
 rm -rf ~/.shell_logs
 
+# Remove fish integration
+rm -f ~/.config/fish/conf.d/wtf.fish
+rm -f ~/.config/fish/conf.d/wtf_profile.fish
+
 
 for rcfile in ~/.bashrc ~/.zshrc; do
     if [ -f "$rcfile" ]; then
