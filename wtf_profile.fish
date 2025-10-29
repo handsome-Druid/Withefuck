@@ -2,9 +2,7 @@
 # This file is sourced by fish (conf.d) to start per-session logging via script(1).
 
 # Continue only in interactive sessions
-if not status is-interactive
-    return
-end
+status is-interactive; or return
 
 if test -z "$UNDER_SCRIPT"
     set -gx UNDER_SCRIPT 1
@@ -17,18 +15,15 @@ if test -z "$UNDER_SCRIPT"
     if test -n "$TTY_RAW"
         set TTY_NAME (printf '%s' "$TTY_RAW" | sed 's#/dev/##; s#/#_#g')
     end
-    set -l TS "$LOGDIR/typescript-"(date +%Y%m%dT%H%M%S)"-"$RANDOM"-"%self"-"$TTY_NAME".log
+    set -l TS "$LOGDIR/typescript-"(date +%Y%m%dT%H%M%S)"-"$RANDOM"-"$fish_pid"-"$TTY_NAME".log
 
     # Export for consumers
     set -gx WTF_TYPESCRIPT "$TS"
     touch "$TS" 2>/dev/null
 
-    # Delete logs older than 7 days
-    if not command -sq find
-        # find not available, skip rotation
-    else
-        find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -delete 2>/dev/null; or \
-            find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -exec rm -f {} + 2>/dev/null
+    # Delete logs older than 7 days (if find is available)
+    if command -sq find
+        find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -delete 2>/dev/null; or find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -exec rm -f {} + 2>/dev/null
     end
 
     # Ensure script(1) exists
@@ -39,8 +34,7 @@ if test -z "$UNDER_SCRIPT"
 
     # Replace current process with the recorded shell
     # Use fish as the user shell here since we are in fish already
-    exec script -q -f -c "fish --login" "$TS" 2>/dev/null; or \
-        exec script --flush --command "fish --login" "$TS"
+    exec script -q -f -c "fish --login" "$TS" 2>/dev/null; or exec script --flush --command "fish --login" "$TS"
 else
     # Inside recorded shell: show a greeting once at startup
     functions -q fish_greeting; and functions -e fish_greeting
@@ -48,7 +42,7 @@ else
         set -l msg "Shell log started."
         if test -t 1
             # Use basic color if available
-            if functions -q set_color
+            if type -q set_color
                 set_color -b yellow
                 set_color -o black
                 echo -n " $msg "
