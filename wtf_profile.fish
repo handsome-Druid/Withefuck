@@ -1,8 +1,10 @@
 # fish integration for Withefuck session logging
 # This file is sourced by fish (conf.d) to start per-session logging via script(1).
 
-# Continue only in interactive sessions
-status is-interactive; or return
+# Continue only in interactive sessions (compatible with older fish)
+if not status --is-interactive
+    return
+end
 
 if test -z "$UNDER_SCRIPT"
     set -gx UNDER_SCRIPT 1
@@ -22,13 +24,13 @@ if test -z "$UNDER_SCRIPT"
     touch "$TS" 2>/dev/null
 
     # Delete logs older than 7 days (if find is available)
-    if command -sq find
+    if type -q find
         find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -delete 2>/dev/null; or find "$LOGDIR" -type f -name 'typescript-*.log' -mtime +7 -exec rm -f {} + 2>/dev/null
     end
 
     # Ensure script(1) exists
     if not type -q script
-        echo "Warning: 'script' command not found; session logging disabled." >&2
+        echo "Warning: 'script' command not found; session logging disabled." 1>&2
         return
     end
 
