@@ -169,7 +169,7 @@ fi
 echo "For first use, run \"wtf --config\" in a new terminal to configure."
 echo "(If writing to /opt/Withefuck/wtf.json fails, run the command as root)"
 echo "To apply immediately in the current session, run:"
-echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh" && wtf --config
+echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh && wtf --config"
 echo
 EOF
 chmod 0755 "$POSTINST"
