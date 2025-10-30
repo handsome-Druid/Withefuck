@@ -22,7 +22,7 @@ if test -z "$UNDER_SCRIPT"
     if test -n "$TTY_RAW"
         set TTY_NAME (printf '%s' "$TTY_RAW" | sed 's#/dev/##; s#/#_#g')
     end
-    set -l TS "$LOGDIR/typescript-"(date +%Y%m%dT%H%M%S)"-"$RANDOM"-"$fish_pid"-"$TTY_NAME".log
+    set -l TS "$LOGDIR/typescript-"(date +%Y%m%dT%H%M%S)"-"$RANDOM"-"$fish_pid"-"$TTY_NAME".log"
 
     # Export for consumers
     set -gx WTF_TYPESCRIPT "$TS"
@@ -45,7 +45,7 @@ if test -z "$UNDER_SCRIPT"
 else
     # Inside recorded shell: show a greeting once at startup
     functions -q fish_greeting; and functions -e fish_greeting
-    function fish_greeting
+        function fish_greeting
         set -l msg "Shell log started."
         if test -t 1
             # Use basic color if available
