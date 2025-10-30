@@ -2,6 +2,11 @@
 # This file is sourced by fish (conf.d) to start per-session logging via script(1).
 
 # Continue only in interactive sessions (compatible with older fish)
+
+if not status is-login
+    return
+end
+
 if not status --is-interactive
     return
 end
