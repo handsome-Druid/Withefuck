@@ -53,7 +53,10 @@ fn hook_regexes() -> Vec<Regex> {
     let bash_ts = Regex::new(r"^-+[ \t]+Shell log started\.[ \t]+-+$").unwrap();
     // zsh flexible: optional rounded or right arrow around the literal message
     let zsh_ts = Regex::new(r"^[ \t]*(?:[ \t]*)?Shell log started\.(?:[ \t]*|[ \t]*)?[ \t]*$").unwrap();
-    vec![zsh_ts, bash_ts]
+    // fish fallback: powerline glyph may be replaced by '?' or omitted after cleaning.
+    // Accept the plain message optionally followed by any non-word, non-space ASCII symbol(s).
+    let fish_ts = Regex::new(r"^[ \t]*Shell log started\.[ \t]*(?:[^A-Za-z0-9_ \t].*)?$").unwrap();
+    vec![zsh_ts, bash_ts, fish_ts]
 }
 
 fn extract_blocks_by_hooks(lines: &[String]) -> Vec<Vec<String>> {
