@@ -170,14 +170,6 @@ echo "For first use, run \"wtf --config\" in a new terminal to configure."
 echo "(If writing to /opt/Withefuck/wtf.json fails, run the command as root)"
 echo "To apply immediately in the current session, run:"
 echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh" && wtf --config
-echo "\nWithefuck 已安装到 /opt/Withefuck，并已为所有交互式 shell 全局启用。";
-echo "- Bash/sh 通过 /etc/profile.d/withefuck.sh 自动加载";
-echo "- Zsh (若系统支持) 通过 /etc/zsh/zshrc.d/withefuck.zsh 自动加载";
-echo "- Fish (若已安装) 通过 /usr/share/fish/vendor_conf.d/withefuck.fish 自动加载";
-echo "\n首次使用请在新开的终端运行：wtf --config 进行配置。"
-echo "(如写入 /opt/Withefuck/wtf.json 失败，请以 root 账号执行该命令)"
-echo "若要在当前会话立即生效，可执行："
-echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh"
 echo
 EOF
 chmod 0755 "$POSTINST"
