@@ -119,7 +119,7 @@ chmod 0644 "$ZSHRC_D_DIR/withefuck.zsh"
 # Fish global enablement (vendor conf.d)
 cat > "$FISH_VENDOR_DIR/withefuck.fish" <<'EOF'
 # Withefuck global enablement for fish
-if status is-interactive
+if status --is-interactive
   if test -f /opt/Withefuck/wtf_profile.fish
     source /opt/Withefuck/wtf_profile.fish
   end

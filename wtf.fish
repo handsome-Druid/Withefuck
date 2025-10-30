@@ -13,16 +13,33 @@ if type -q readlink
         set _wtf_realpath "$maybe"
     end
 end
-set -l SCRIPT_DIR (dirname "$_wtf_realpath")
+set -g SCRIPT_DIR (dirname "$_wtf_realpath")
+
+# Fallback: if SCRIPT_DIR is empty or not a directory, try to get the defining file of function `wtf`
+if test -z "$SCRIPT_DIR"; or not test -d "$SCRIPT_DIR"
+    set -l _fun_file (functions -v wtf 2>/dev/null)
+    if test -n "$_fun_file"
+        set -g SCRIPT_DIR (dirname "$_fun_file")
+    end
+end
+
+# Final fallback: if still empty, try the current working directory (best-effort)
+if test -z "$SCRIPT_DIR"; or not test -d "$SCRIPT_DIR"
+    set -g SCRIPT_DIR (pwd)
+end
+
+if test -z "$SCRIPT_DIR"; or not test -d "$SCRIPT_DIR"
+    set -g SCRIPT_DIR "/opt/Withefuck"
+end
 
 # Decide runtime mode strictly by version.txt suffix: "*-py" or "*-rs"
-set -l _WTF_VERSION_FILE "$SCRIPT_DIR/version.txt"
-set -l _WTF_VERSION ""
+set -g _WTF_VERSION_FILE "$SCRIPT_DIR/version.txt"
+set -g _WTF_VERSION ""
 if test -f "$_WTF_VERSION_FILE"
     set _WTF_VERSION (head -n 1 "$_WTF_VERSION_FILE" | tr -d '\r' | tr -d ' ')
 end
 
-set -l _WTF_MODE "invalid"
+set -g _WTF_MODE "invalid"
 switch $_WTF_VERSION
     case '*-rs'
         set _WTF_MODE 'rs'
@@ -30,7 +47,7 @@ switch $_WTF_VERSION
         set _WTF_MODE 'py'
 end
 
-set -l WTF_BIN ""
+set -g WTF_BIN ""
 if test "$_WTF_MODE" = 'rs'
     set WTF_BIN "$SCRIPT_DIR/wtf"
 else if test "$_WTF_MODE" = 'py'

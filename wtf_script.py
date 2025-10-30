@@ -25,9 +25,12 @@ def _get_hook_regexes():
     """
     # bash ASCII divider containing the literal message
     bash_ts = re.compile(r"^-+\s+Shell log started\.\s+-+$")
-    # zsh flexible: optional rounded ( ... ) or right arrow () around the literal message
+    # zsh/fish flexible: optional rounded ( ... ) or right arrow () around the literal message
     zsh_ts = re.compile(r"^\s*(?:\s*)?Shell log started\.(?:\s*|\s*)?\s*$")
-    return [zsh_ts, bash_ts]
+    # fish fallback: some setups record replacement glyphs like '?' for powerline symbols,
+    # or omit glyphs entirely after cleaning; accept any trailing non-word symbol(s) or nothing
+    fish_ts = re.compile(r"^\s*Shell log started\.\s*(?:[^\w\s].*)?$")
+    return [zsh_ts, bash_ts, fish_ts]
 
 def _strip_backspaces(s: str) -> str:
     # Normalize sequences like "l\bls" -> "ls"
@@ -152,33 +155,38 @@ def extract_commands_hook_only(text: str):
             pairs.append(item)
     return pairs
 
+def _tail_wtf(cmd_line: str):
+    """Return 'wtf' or 'wtf --logs' if the line ends with it (case-insensitive), otherwise None."""
+    if not cmd_line:
+        return None
+    m = re.search(r"(wtf(?:\s+--logs)?)\s*$", cmd_line, re.IGNORECASE)
+    return m.group(1).lower() if m else None
+
 def _filter_wtf_commands_inline(results):
     """Filter/merge 'wtf' and 'wtf --logs' without relying on global order."""
-    def _tail_wtf(cmd_line: str):
-        """匹配行尾部的 'wtf' 或 'wtf --logs'。忽略前导提示符，只看尾部命令。"""
-        if not cmd_line:
-            return None
-        m = re.search(r"(wtf(?:\s+--logs)?)\s*$", cmd_line, re.IGNORECASE)
-        return m.group(1).lower() if m else None
-
     filtered = []
     for cmd, out in results:
-        if cmd is None:
+        if not cmd:
             continue
+
         tail = _tail_wtf(cmd)
-        if tail == 'wtf --logs':
+        if tail == "wtf --logs":
             # Drop this block
             continue
-        if tail == 'wtf':
-            # Merge output into the previous block
-            if filtered:
-                prev_cmd, prev_out = filtered[-1]
-                prev_out = f"{prev_out}\n{out}" if prev_out else out
-                filtered[-1] = (prev_cmd, prev_out)
-            else:
+
+        if tail == "wtf":
+            # Merge output into the previous block (or create a placeholder if none)
+            if not filtered:
                 filtered.append(("", out))
+                continue
+            prev_cmd, prev_out = filtered[-1]
+            merged_out = f"{prev_out}\n{out}" if prev_out else out
+            filtered[-1] = (prev_cmd, merged_out)
             continue
+
+        # Normal command: keep as-is
         filtered.append((cmd, out))
+
     return filtered
 
 def get_latest_log():
@@ -206,7 +214,7 @@ def get_last_n_commands(n=3):
 
 def get_history_count():
     config_path = str(PROJECT_DIR / WTF_CONFIG_FILENAME)
-    config, existed, load_err = _wtf_load_config(config_path)
+    config, _, load_err = _wtf_load_config(config_path)
     if load_err:
         return None
     return config.get("history_count")
@@ -217,16 +225,20 @@ def main():
     except (ValueError, TypeError):
         print("Warning: could not load configuration. Please run 'wtf --config'.")
         return
-    if history_count is None or history_count > 100 or history_count <= 0:
+    try:
+        if history_count > 100 or history_count <= 0:
+            print("Warning: invalid history count. Please run 'wtf --config'.")
+            return
+    except Exception:
         print("Warning: invalid history count. Please run 'wtf --config'.")
         return
     try:
         cmds = get_last_n_commands(history_count)
-    except Exception as e:
-        print(f"Warning: could not load configuration. Please run 'wtf --config'.")
+    except Exception:
+        print("Warning: could not load configuration. Please run 'wtf --config'.")
         return
     if len(cmds) == 1:
-        print(f"Last command and its output:\n")
+        print("Last command and its output:\n")
     else:
         print(f"Last {len(cmds)} commands and their outputs:\n")
     for i, (cmd, output) in enumerate(cmds, 1):
