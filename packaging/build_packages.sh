@@ -171,6 +171,9 @@ echo "(If writing to /opt/Withefuck/wtf.json fails, run the command as root)"
 echo "To apply immediately in the current session, run:"
 echo "  . /opt/Withefuck/wtf_profile.sh && . /opt/Withefuck/wtf.sh && wtf --config"
 echo
+echo "Or for fish shell:"
+echo "  . /opt/Withefuck/wtf_profile.fish && . /opt/Withefuck/wtf.fish && wtf --config"
+echo
 EOF
 chmod 0755 "$POSTINST"
 
