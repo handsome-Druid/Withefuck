@@ -246,7 +246,7 @@ COMMON_ARGS=(
 # - util-linux: for 'script' and other common tools
 # - python3: only for py mode
 # - ca-certificates: for rs mode when using reqwest+rustls with native roots
-DEPENDS=(--depends util-linux)
+DEPENDS=(--depends util-linux --depends script)
 if [[ "$MODE" == "py" ]]; then
   DEPENDS+=(--depends python3)
 else
