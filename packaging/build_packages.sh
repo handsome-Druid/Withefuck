@@ -246,12 +246,15 @@ COMMON_ARGS=(
 # - util-linux: for 'script' and other common tools
 # - python3: only for py mode
 # - ca-certificates: for rs mode when using reqwest+rustls with native roots
-DEPENDS=(--depends util-linux --depends script)
+DEPENDS=(--depends util-linux)
 if [[ "$MODE" == "py" ]]; then
   DEPENDS+=(--depends python3)
 else
   DEPENDS+=(--depends ca-certificates)
 fi
+
+  RPM_DEPENDS=(--depends util-linux-script)
+  RPM_DEPENDS+=("${DEPENDS[@]}")
 
 echo "Building .deb ..."
 fpm -t deb "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
@@ -262,7 +265,7 @@ fpm -t deb "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
   .
 
 echo "Building .rpm ..."
-fpm -t rpm "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
+fpm -t rpm "${COMMON_ARGS[@]}" "${RPM_DEPENDS[@]}" \
   --rpm-os linux \
   --after-install "$POSTINST" \
   --after-remove "$POSTRM" \
