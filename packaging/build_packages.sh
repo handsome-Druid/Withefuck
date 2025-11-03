@@ -243,18 +243,23 @@ COMMON_ARGS=(
 )
 
 # dependencies
-# - util-linux: for 'script' and other common tools
+# - util-linux: base tools (includes 'script' on Debian/CentOS)
+# - util-linux-script: split-out package on Fedora (weak dep so CentOS won't fail)
 # - python3: only for py mode
 # - ca-certificates: for rs mode when using reqwest+rustls with native roots
 DEPENDS=(--depends util-linux)
-if [[ "$MODE" == "py" ]]; then
+if [[ "${MODE}" == "py" ]]; then
   DEPENDS+=(--depends python3)
 else
   DEPENDS+=(--depends ca-certificates)
 fi
 
-RPM_DEPENDS=(--depends 'util-linux-script or util-linux')
-if [[ "$MODE" == "py" ]]; then
+# RPM-specific dependencies
+# Require util-linux (CentOS has script in this package), and only recommend
+# util-linux-script (Fedora will auto-install Recommends by default; CentOS will ignore).
+RPM_DEPENDS=(--depends util-linux)
+RPM_RECOMMENDS=(--recommends util-linux-script)
+if [[ "${MODE}" == "py" ]]; then
   RPM_DEPENDS+=(--depends python3)
 else
   RPM_DEPENDS+=(--depends ca-certificates)
@@ -270,7 +275,7 @@ fpm -t deb "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
   .
 
 echo "Building .rpm ..."
-fpm -t rpm "${COMMON_ARGS[@]}" "${RPM_DEPENDS[@]}" \
+fpm -t rpm "${COMMON_ARGS[@]}" "${RPM_DEPENDS[@]}" "${RPM_RECOMMENDS[@]}" \
   --rpm-os linux \
   --after-install "$POSTINST" \
   --after-remove "$POSTRM" \
