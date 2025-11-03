@@ -49,11 +49,18 @@ def clean_text(text: str) -> str:
     # Strip CSI/OSC control sequences; normalize backspaces and CRs
     text = CSI_RE.sub('', text)
     text = OSC_RE.sub('', text)
+    # Remove other ESC-prefixed sequences commonly seen in terminals
+    # - ESC Fe (single final byte in @-Z\\^_)
+    text = re.sub(r'\x1B[@-Z\\^_]', '', text)
+    # - ESC with one intermediate (0x20-0x2F) and a final byte (0x40-0x7E), e.g. ESC(B, ESC)0, ESC#8, ESC%G
+    text = re.sub(r'\x1B[ -/][@-~]', '', text)
     # Normalize carriage returns: preserve logical line breaks instead of merging lines
     text = text.replace('\r\n', '\n')
     text = text.replace('\r', '\n')
     # Remove leftover single-char ESC sequences commonly seen in zsh logs (ESC= / ESC>)
     text = re.sub(r'\x1B[=><]', '', text)
+    # Remove visible return glyphs that appear in some logs
+    text = text.replace('⏎', '')
     text = _strip_backspaces(text)
     text = CTRL_RE.sub('', text)
     return text.strip()
@@ -98,9 +105,18 @@ def _block_to_cmd_out(block_lines):
         stripped = ln.replace('⏎', '').strip()
         return stripped == ''
 
+    def _looks_like_prompt(ln: str) -> bool:
+        s = ln.strip()
+        # Typical prompts end with '#' or '$' and often include user@host
+        return (('@' in s) and (s.endswith('#') or s.endswith('$') or s.endswith('# ') or s.endswith('$ ')))
+
     cmd_line_idx = None
     for i, ln in enumerate(block_lines):
-        if ln.strip() and not _is_noise_line(ln):
+        s = ln.strip()
+        if not s or _is_noise_line(s) or _looks_like_prompt(s):
+            continue
+        # Prefer a line that looks like an actual command (>=2 chars or contains non-alpha like space, /, -)
+        if len(s) >= 2 or re.search(r'[^A-Za-z]', s):
             cmd_line_idx = i
             break
     if cmd_line_idx is None:
