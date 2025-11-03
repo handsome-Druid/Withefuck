@@ -29,7 +29,7 @@ if test -z "$UNDER_SCRIPT"
     end
     set -l __ts (date +%Y%m%dT%H%M%S)
     set -l __rand (random)
-    set - TS "$LOGDIR/typescript-$__ts-$__rand-$fish_pid-$TTY_NAME.log"
+    set -l TS "$LOGDIR/typescript-$__ts-$__rand-$fish_pid-$TTY_NAME.log"
 
     # Export for consumers
     set -gx WTF_TYPESCRIPT "$TS"
