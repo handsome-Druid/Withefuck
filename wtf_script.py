@@ -16,6 +16,9 @@ OSC_RE = re.compile(r"\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)")
 # Other single-char controls that pollute logs
 CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
+# OSC 0/2: Set window/icon title: ESC ] 0 ; txt BEL  or  ESC ] 0 ; txt ESC \\
+OSC_TITLE_RE = re.compile(r"\x1B\]([02]);([^\x07\x1B]*)(?:\x07|\x1B\\)")
+
 def _get_hook_regexes():
     """
     Return regexes that match the literal divider lines inserted by the prompt hooks
@@ -64,6 +67,22 @@ def clean_text(text: str) -> str:
     text = _strip_backspaces(text)
     text = CTRL_RE.sub('', text)
     return text.strip()
+
+def _clean_line(line: str) -> str:
+    """Clean a single log line while preserving line alignment.
+    Mirrors clean_text but operates per-line to keep indexes consistent against raw lines.
+    """
+    line = CSI_RE.sub('', line)
+    line = OSC_RE.sub('', line)
+    # Other ESC sequences
+    line = re.sub(r'\x1B[@-Z\\^_]', '', line)
+    line = re.sub(r'\x1B[ -/][@-~]', '', line)
+    # Remove stray ESC single-char sequences
+    line = re.sub(r'\x1B[=><]', '', line)
+    line = line.replace('⏎', '')
+    line = _strip_backspaces(line)
+    line = CTRL_RE.sub('', line)
+    return line
 
 def is_wtf(cmd):
     if cmd is None:
@@ -227,11 +246,65 @@ def get_latest_log():
 
 def get_last_n_commands(n=3):
     log_path = get_latest_log()
-    text = log_path.read_text(errors="ignore")
-    text = clean_text(text)
-    commands = extract_commands_hook_only(text)
-    commands = _filter_wtf_commands_inline(commands)
-    return commands[-n:]
+    raw_text = log_path.read_text(errors="ignore")
+
+    # Work on a per-line basis to keep raw/cleaned line indices aligned
+    raw_lines = raw_text.splitlines()
+    cleaned_lines = [_clean_line(l) for l in raw_lines]
+
+    # Find hook indices on cleaned lines
+    ts_res = _get_hook_regexes()
+    ts_idx = [i for i, ln in enumerate(cleaned_lines) if any(r.search(ln) for r in ts_res)]
+
+    results = []
+    if len(ts_idx) >= 2:
+        for a, b in zip(ts_idx[:-1], ts_idx[1:]):
+            blk_clean = cleaned_lines[a+1:b]
+            blk_raw = raw_lines[a+1:b]
+
+            item = _block_to_cmd_out(blk_clean)
+            if item is None:
+                continue
+            cmd, out = item
+
+            # Try to improve command by using the last OSC window title in raw block
+            joined_raw = "\n".join(blk_raw)
+            osc_matches = list(OSC_TITLE_RE.finditer(joined_raw))
+            if osc_matches:
+                title_txt = osc_matches[-1].group(2)
+                better = _cmd_from_title(title_txt)
+                if better:
+                    cmd = better
+
+            results.append((cmd, out))
+
+    # Fallback to old path if no blocks found
+    if not results:
+        cleaned_text = "\n".join(cleaned_lines)
+        results = extract_commands_hook_only(cleaned_text)
+
+    results = _filter_wtf_commands_inline(results)
+    return results[-n:]
+
+def _cmd_from_title(title: str) -> str:
+    """Extract command from terminal title like "[host] cmd args [cwd]".
+    Heuristics:
+      - If title starts with [..], drop that prefix.
+      - Drop trailing token if it looks like a path (~/ or /path) or just '~'.
+    """
+    if not title:
+        return ''
+    s = title.strip()
+    m = re.match(r'^\[[^\]]*\]\s+(.*)$', s)
+    if m:
+        s = m.group(1)
+    tokens = s.split()
+    if not tokens:
+        return ''
+    if tokens[-1] == '~' or tokens[-1].startswith('/') or tokens[-1].startswith('~'):
+        tokens = tokens[:-1]
+    s = ' '.join(tokens).strip()
+    return s
 
 def get_history_count():
     config_path = str(PROJECT_DIR / WTF_CONFIG_FILENAME)
