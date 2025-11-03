@@ -183,6 +183,28 @@ cat > "$POSTRM" <<'EOF'
 #!/usr/bin/env bash
 set -e
 
+# Only perform deep cleanup on final removal, not during upgrades.
+# - RPM: in %postun, $1==1 means upgrade, $1==0 means erase
+# - Debian: postrm gets an action arg; only 'purge' should trigger deep cleanup
+if command -v rpm >/dev/null 2>&1; then
+  if [ "${1:-0}" -eq 1 ]; then
+    # Upgrade path: skip cleanup to avoid wiping files that the new package just installed
+    exit 0
+  fi
+fi
+
+if command -v dpkg >/dev/null 2>&1; then
+  case "${1:-}" in
+    remove|upgrade|disappear|failed-upgrade)
+      # Not a final purge; skip cleanup
+      exit 0
+      ;;
+    purge|"")
+      # Continue with cleanup
+      ;;
+  esac
+fi
+
 # Remove python cache dirs if any were generated at runtime
 find /opt/Withefuck -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 rm -rf /opt/Withefuck/_pycache_ 2>/dev/null || true

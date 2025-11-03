@@ -74,7 +74,7 @@ def _extract_blocks_by_hooks(lines):
     Only keep content strictly between adjacent hook lines.
     """
     ts_res = _get_hook_regexes()
-    ts_idx = [i for i, ln in enumerate(lines) if any(r.match(ln) for r in ts_res)]
+    ts_idx = [i for i, ln in enumerate(lines) if any(r.search(ln) for r in ts_res)]
     blocks = []
     if len(ts_idx) < 2:
         return blocks
