@@ -243,18 +243,34 @@ COMMON_ARGS=(
 )
 
 # dependencies
-# - util-linux: for 'script' and other common tools
+# - util-linux: base tools (includes 'script' on Debian/CentOS)
+# - util-linux-script: split-out package on Fedora (weak dep so CentOS won't fail)
+# - python3: only for py mode
+# - ca-certificates: for rs mode when using reqwest+rustls with native roots
+# dependencies
+# - util-linux (deb): provides 'script' on Debian/Ubuntu
+# - rpm will depend on the file /usr/bin/script (Fedora: util-linux-script; CentOS/RHEL: util-linux)
 # - python3: only for py mode
 # - ca-certificates: for rs mode when using reqwest+rustls with native roots
 DEPENDS=(--depends util-linux)
-if [[ "$MODE" == "py" ]]; then
+if [[ "${MODE}" == "py" ]]; then
   DEPENDS+=(--depends python3)
 else
   DEPENDS+=(--depends ca-certificates)
 fi
 
-  RPM_DEPENDS=(--depends util-linux-script)
-  RPM_DEPENDS+=("${DEPENDS[@]}")
+# RPM-specific dependencies
+# Use boolean OR Requires so the RPM is installable across distros:
+# - Fedora: util-linux-script provides 'script' (resolver may choose it)
+# - CentOS/RHEL: 'script' lives in util-linux, so util-linux satisfies it
+# Note: fpm used in CI doesn't support RPM Recommends; boolean Requires is used instead.
+RPM_DEPENDS=(--depends /usr/bin/script)
+if [[ "${MODE}" == "py" ]]; then
+  RPM_DEPENDS+=(--depends python3)
+else
+  RPM_DEPENDS+=(--depends ca-certificates)
+fi
+
 
 echo "Building .deb ..."
 fpm -t deb "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
