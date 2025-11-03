@@ -177,11 +177,21 @@ function wtf --description 'Withefuck (fish)'
         return 0
     end
 
-    # Print suggestion for visibility and prompt to execute
-    echo -n "$cmd "
-    # Simple, portable prompt without relying on termcap in fish
-    set -l prompt '[enter/ctrl+c] '
-    read -P "$prompt" reply
+    # Build prompt text to include the suggested command on the SAME line
+    # Fish may redraw the line for `read -P`, so include the command inside the prompt itself
+    set -l prompt
+    if test -z "$WTF_NO_COLOR"; and test -z "$NO_COLOR"; and status --is-interactive
+        set -l green (set_color green)
+        set -l red   (set_color red)
+        set -l norm  (set_color normal)
+        set prompt (string join '' '[' $green 'enter' $norm '/' $red 'ctrl+c' $norm '] ')
+    else
+        set prompt '[enter/ctrl+c] '
+    end
+    set -l full_prompt (string join '' "$cmd " $prompt)
+
+    # Read user confirmation; everything stays on one line
+    read -P "$full_prompt" reply
     if test -z "$reply"
         eval $cmd
         return $status
