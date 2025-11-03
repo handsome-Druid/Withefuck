@@ -85,8 +85,8 @@ fn hook_regexes() -> Vec<Regex> {
     // fish fallback: powerline glyph may be replaced by '?' or omitted after cleaning.
     // Accept the plain message optionally followed by any non-word, non-space ASCII symbol(s).
     let fish_ts = Regex::new(r"^[ \t]*Shell log started\.[ \t]*(?:[^A-Za-z0-9_ \t].*)?$").unwrap();
-    // ultimate fallback: any line containing the literal text, case-insensitive
-    let generic_ts = Regex::new(r"(?i)Shell log started\.").unwrap();
+    // ultimate fallback: any line containing the literal text (ASCII, case-sensitive to avoid unicode-case feature)
+    let generic_ts = Regex::new(r"Shell log started\.").unwrap();
     vec![zsh_ts, bash_ts, fish_ts, generic_ts]
 }
 
