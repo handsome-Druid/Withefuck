@@ -111,6 +111,35 @@ def _extract_blocks_by_hooks(lines):
         blocks.append(seg)
     return blocks
 
+def _is_noise_line(ln: str) -> bool:
+    stripped = ln.replace('⏎', '').strip()
+    return stripped == ''
+
+def _looks_like_prompt(ln: str) -> bool:
+    s = ln.strip()
+    # Typical prompts end with '#' or '$' and often include user@host
+    return (('@' in s) and (s.endswith('#') or s.endswith('$') or s.endswith('# ') or s.endswith('$ ')))
+
+def _find_cmd_line_idx(lines):
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if not s or _is_noise_line(s) or _looks_like_prompt(s):
+            continue
+        # Prefer a line that looks like an actual command (>=2 chars or contains non-alpha like space, /, -)
+        if len(s) >= 2 or re.search(r'[^A-Za-z]', s):
+            return i
+    return None
+
+def _contains_wtf_without_help_opts(line: str) -> bool:
+    # Find 'wtf' as a whole word anywhere in the line, capture what's after it on the same line
+    m = re.search(r"(?i)\bwtf\b(.*)$", line)
+    if not m:
+        return False
+    rest = m.group(1) or ""
+    # If the immediate args are one of the allowed info flags, do NOT treat specially
+    re_allowed = re.compile(r"(?i)^\s*(--help|-h|-V|--version|--config)\b")
+    return not re_allowed.match(rest)
+
 def _block_to_cmd_out(block_lines):
     """
     Convert one block to (cmd, out).
@@ -120,49 +149,18 @@ def _block_to_cmd_out(block_lines):
     """
     if not block_lines:
         return None
-    def _is_noise_line(ln: str) -> bool:
-        stripped = ln.replace('⏎', '').strip()
-        return stripped == ''
 
-    def _looks_like_prompt(ln: str) -> bool:
-        s = ln.strip()
-        # Typical prompts end with '#' or '$' and often include user@host
-        return (('@' in s) and (s.endswith('#') or s.endswith('$') or s.endswith('# ') or s.endswith('$ ')))
-
-    cmd_line_idx = None
-    for i, ln in enumerate(block_lines):
-        s = ln.strip()
-        if not s or _is_noise_line(s) or _looks_like_prompt(s):
-            continue
-        # Prefer a line that looks like an actual command (>=2 chars or contains non-alpha like space, /, -)
-        if len(s) >= 2 or re.search(r'[^A-Za-z]', s):
-            cmd_line_idx = i
-            break
+    cmd_line_idx = _find_cmd_line_idx(block_lines)
     if cmd_line_idx is None:
         return None
-    # Start building command and decide where output begins
+
     cmd = block_lines[cmd_line_idx]
     out_start = cmd_line_idx + 1
 
-    if out_start < len(block_lines):
-        next_line = block_lines[out_start]
-
-        # Helper: does a line contain 'wtf' not followed by specific options?
-        def contains_wtf_without_help_opts(line: str) -> bool:
-            # Find 'wtf' as a whole word anywhere in the line, capture what's after it on the same line
-            m = re.search(r"(?i)\bwtf\b(.*)$", line)
-            if not m:
-                return False
-            rest = m.group(1) or ""
-            # If the immediate args are one of the allowed info flags, do NOT treat specially
-            re_allowed = re.compile(r"(?i)^\s*(--help|-h|-V|--version|--config)\b")
-            return not re_allowed.match(rest)
-
-        # If the next line contains 'wtf' (anywhere) and isn't followed by help/version/config flags,
-        # treat it as part of the command line (to support zsh themes that wrap prompts).
-        if contains_wtf_without_help_opts(next_line):
-            cmd = cmd + "\n" + next_line
-            out_start += 1
+    # If the next line looks like a wrapped 'wtf' invocation, merge it into the command
+    if out_start < len(block_lines) and _contains_wtf_without_help_opts(block_lines[out_start]):
+        cmd = f"{cmd}\n{block_lines[out_start]}"
+        out_start += 1
 
     out = "\n".join(block_lines[out_start:]).strip()
     return (cmd, out)
@@ -244,13 +242,53 @@ def get_latest_log():
         raise FileNotFoundError("No script log found. Please run some commands first.")
     return files[-1]
 
-def get_last_n_commands(n=3):
+def _read_and_clean_latest_log():
     log_path = get_latest_log()
     raw_text = log_path.read_text(errors="ignore")
-
-    # Work on a per-line basis to keep raw/cleaned line indices aligned
     raw_lines = raw_text.splitlines()
     cleaned_lines = [_clean_line(l) for l in raw_lines]
+    return raw_lines, cleaned_lines
+
+def _process_block_with_osc(a, b, raw_lines, cleaned_lines):
+    blk_clean = cleaned_lines[a+1:b]
+    blk_raw = raw_lines[a+1:b]
+
+    item = _block_to_cmd_out(blk_clean)
+    if item is None:
+        return None
+
+    cmd, out = item
+
+    # Try to improve command and output by using the last OSC window title in raw block
+    joined_raw = "\n".join(blk_raw)
+    osc_matches = list(OSC_TITLE_RE.finditer(joined_raw))
+    if not osc_matches:
+        return (cmd, out)
+
+    last = osc_matches[-1]
+    title_txt = last.group(2)
+    better_cmd = _cmd_from_title(title_txt)
+    if better_cmd:
+        cmd = better_cmd
+
+    # Use only content AFTER the title update as the true command output
+    raw_after = joined_raw[last.end():]
+    out_lines = raw_after.splitlines()
+    out_clean = [_clean_line(l) for l in out_lines]
+
+    def _drop_noise(l: str) -> bool:
+        s = l.strip()
+        if not s:
+            return True
+        if cmd and (s == cmd or (len(s) < len(cmd) and cmd.startswith(s))):
+            return True
+        return False
+
+    out = "\n".join([l for l in out_clean if not _drop_noise(l)]).strip()
+    return (cmd, out)
+
+def get_last_n_commands(n=3):
+    raw_lines, cleaned_lines = _read_and_clean_latest_log()
 
     # Find hook indices on cleaned lines
     ts_res = _get_hook_regexes()
@@ -259,38 +297,9 @@ def get_last_n_commands(n=3):
     results = []
     if len(ts_idx) >= 2:
         for a, b in zip(ts_idx[:-1], ts_idx[1:]):
-            blk_clean = cleaned_lines[a+1:b]
-            blk_raw = raw_lines[a+1:b]
-
-            item = _block_to_cmd_out(blk_clean)
-            if item is None:
-                continue
-            cmd, out = item
-
-            # Try to improve command and output by using the last OSC window title in raw block
-            joined_raw = "\n".join(blk_raw)
-            osc_matches = list(OSC_TITLE_RE.finditer(joined_raw))
-            if osc_matches:
-                last = osc_matches[-1]
-                title_txt = last.group(2)
-                better_cmd = _cmd_from_title(title_txt)
-                if better_cmd:
-                    cmd = better_cmd
-                # Use only content AFTER the title update as the true command output
-                raw_after = joined_raw[last.end():]
-                out_lines = raw_after.splitlines()
-                out_clean = [_clean_line(l) for l in out_lines]
-                # Drop empty/noise and echoes of the command (or its prefixes)
-                def _drop_noise(l: str) -> bool:
-                    s = l.strip()
-                    if not s:
-                        return True
-                    if cmd and (s == cmd or (len(s) < len(cmd) and cmd.startswith(s))):
-                        return True
-                    return False
-                out = "\n".join([l for l in out_clean if not _drop_noise(l)]).strip()
-
-            results.append((cmd, out))
+            processed = _process_block_with_osc(a, b, raw_lines, cleaned_lines)
+            if processed:
+                results.append(processed)
 
     # Fallback to old path if no blocks found
     if not results:
