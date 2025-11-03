@@ -267,14 +267,28 @@ def get_last_n_commands(n=3):
                 continue
             cmd, out = item
 
-            # Try to improve command by using the last OSC window title in raw block
+            # Try to improve command and output by using the last OSC window title in raw block
             joined_raw = "\n".join(blk_raw)
             osc_matches = list(OSC_TITLE_RE.finditer(joined_raw))
             if osc_matches:
-                title_txt = osc_matches[-1].group(2)
-                better = _cmd_from_title(title_txt)
-                if better:
-                    cmd = better
+                last = osc_matches[-1]
+                title_txt = last.group(2)
+                better_cmd = _cmd_from_title(title_txt)
+                if better_cmd:
+                    cmd = better_cmd
+                # Use only content AFTER the title update as the true command output
+                raw_after = joined_raw[last.end():]
+                out_lines = raw_after.splitlines()
+                out_clean = [_clean_line(l) for l in out_lines]
+                # Drop empty/noise and echoes of the command (or its prefixes)
+                def _drop_noise(l: str) -> bool:
+                    s = l.strip()
+                    if not s:
+                        return True
+                    if cmd and (s == cmd or (len(s) < len(cmd) and cmd.startswith(s))):
+                        return True
+                    return False
+                out = "\n".join([l for l in out_clean if not _drop_noise(l)]).strip()
 
             results.append((cmd, out))
 
