@@ -30,7 +30,9 @@ def _get_hook_regexes():
     # fish fallback: some setups record replacement glyphs like '?' for powerline symbols,
     # or omit glyphs entirely after cleaning; accept any trailing non-word symbol(s) or nothing
     fish_ts = re.compile(r"^\s*Shell log started\.\s*(?:[^\w\s].*)?$")
-    return [zsh_ts, bash_ts, fish_ts]
+    # ultimate fallback: any line containing the literal text, case-insensitive
+    generic_ts = re.compile(r"Shell log started\.", re.IGNORECASE)
+    return [zsh_ts, bash_ts, fish_ts, generic_ts]
 
 def _strip_backspaces(s: str) -> str:
     # Normalize sequences like "l\bls" -> "ls"
@@ -92,10 +94,13 @@ def _block_to_cmd_out(block_lines):
     """
     if not block_lines:
         return None
-    # 找第一条非空行作为命令
+    def _is_noise_line(ln: str) -> bool:
+        stripped = ln.replace('⏎', '').strip()
+        return stripped == ''
+
     cmd_line_idx = None
     for i, ln in enumerate(block_lines):
-        if ln.strip():
+        if ln.strip() and not _is_noise_line(ln):
             cmd_line_idx = i
             break
     if cmd_line_idx is None:
