@@ -253,8 +253,13 @@ else
   DEPENDS+=(--depends ca-certificates)
 fi
 
-  RPM_DEPENDS=(--depends util-linux-script)
-  RPM_DEPENDS+=("${DEPENDS[@]}")
+RPM_DEPENDS=(--depends 'util-linux-script or util-linux')
+if [[ "$MODE" == "py" ]]; then
+  RPM_DEPENDS+=(--depends python3)
+else
+  RPM_DEPENDS+=(--depends ca-certificates)
+fi
+
 
 echo "Building .deb ..."
 fpm -t deb "${COMMON_ARGS[@]}" "${DEPENDS[@]}" \
