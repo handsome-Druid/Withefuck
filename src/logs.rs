@@ -38,13 +38,42 @@ fn clean_text(text: &str) -> String {
 
     let mut t = csi_re.replace_all(text, "").to_string();
     t = osc_re.replace_all(&t, "").to_string();
+    // Remove other ESC-prefixed sequences commonly seen in terminals
+    // - ESC Fe (single final byte in @-Z\\^_)
+    let esc_single = Regex::new(r"\x1B[@-Z\\^_]").unwrap();
+    t = esc_single.replace_all(&t, "").to_string();
+    // - ESC with one intermediate (0x20-0x2F) and a final byte (0x40-0x7E), e.g. ESC(B, ESC)0, ESC#8, ESC%G
+    let esc_two = Regex::new(r"\x1B[ -/][@-~]").unwrap();
+    t = esc_two.replace_all(&t, "").to_string();
     t = t.replace("\r\n", "\n");
     t = t.replace('\r', "\n");
     let esc_misc = Regex::new(r"\x1B[=><]").unwrap();
     t = esc_misc.replace_all(&t, "").to_string();
+    // Remove visible return glyphs that appear in some logs
+    t = t.replace('⏎', "");
     t = strip_backspaces(&t);
     t = ctrl_re.replace_all(&t, "").to_string();
     t.trim().to_string()
+}
+
+fn clean_line(line: &str) -> String {
+    // Per-line cleaner mirroring clean_text but preserving line structure
+    let csi_re = Regex::new(r"\x1B\[[0-?]*[ -/]*[@-~]").unwrap();
+    let osc_re = Regex::new(r"\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)").unwrap();
+    let esc_single = Regex::new(r"\x1B[@-Z\\^_]").unwrap();
+    let esc_two = Regex::new(r"\x1B[ -/][@-~]").unwrap();
+    let esc_misc = Regex::new(r"\x1B[=><]").unwrap();
+    let ctrl_re = Regex::new(r"[\x00-\x08\x0b\x0c\x0e-\x1f]").unwrap();
+
+    let mut s = csi_re.replace_all(line, "").to_string();
+    s = osc_re.replace_all(&s, "").to_string();
+    s = esc_single.replace_all(&s, "").to_string();
+    s = esc_two.replace_all(&s, "").to_string();
+    s = esc_misc.replace_all(&s, "").to_string();
+    s = s.replace('⏎', "");
+    s = strip_backspaces(&s);
+    s = ctrl_re.replace_all(&s, "").to_string();
+    s
 }
 
 fn hook_regexes() -> Vec<Regex> {
@@ -56,7 +85,9 @@ fn hook_regexes() -> Vec<Regex> {
     // fish fallback: powerline glyph may be replaced by '?' or omitted after cleaning.
     // Accept the plain message optionally followed by any non-word, non-space ASCII symbol(s).
     let fish_ts = Regex::new(r"^[ \t]*Shell log started\.[ \t]*(?:[^A-Za-z0-9_ \t].*)?$").unwrap();
-    vec![zsh_ts, bash_ts, fish_ts]
+    // ultimate fallback: any line containing the literal text, case-insensitive
+    let generic_ts = Regex::new(r"(?i)Shell log started\.").unwrap();
+    vec![zsh_ts, bash_ts, fish_ts, generic_ts]
 }
 
 fn extract_blocks_by_hooks(lines: &[String]) -> Vec<Vec<String>> {
@@ -77,8 +108,23 @@ fn extract_blocks_by_hooks(lines: &[String]) -> Vec<Vec<String>> {
 
 fn block_to_cmd_out(block: &[String]) -> Option<(String, String)> {
     if block.is_empty() { return None; }
-    let mut cmd_idx = None;
-    for (i, ln) in block.iter().enumerate() { if !ln.trim().is_empty() { cmd_idx = Some(i); break; } }
+    // helpers for noise/prompt detection similar to Python version
+    fn is_noise_line(ln: &str) -> bool { ln.replace('⏎', "").trim().is_empty() }
+    fn looks_like_prompt(ln: &str) -> bool {
+        let s = ln.trim();
+        (s.contains('@')) && (s.ends_with('#') || s.ends_with('$') || s.ends_with("# ") || s.ends_with("$ "))
+    }
+
+    let mut cmd_idx: Option<usize> = None;
+    for (i, ln) in block.iter().enumerate() {
+        let s = ln.trim();
+        if s.is_empty() || is_noise_line(s) || looks_like_prompt(s) { continue; }
+        // prefer a line that looks like a real command
+        if s.len() >= 2 || s.chars().any(|ch| !ch.is_ascii_alphabetic()) {
+            cmd_idx = Some(i);
+            break;
+        }
+    }
     let i = cmd_idx?;
 
     // Helper: does a line contain 'wtf' not followed by specific options?
@@ -158,15 +204,79 @@ fn filter_wtf_commands_inline(results: &[(String, String)]) -> Vec<(String, Stri
 pub fn get_last_n_commands(n: usize) -> Result<Vec<(String, String)>, String> {
     let path = latest_log_path()?;
     let raw = fs::read_to_string(&path).map_err(|e| format!("Failed to read log: {e}"))?;
-    let cleaned = clean_text(&raw);
-    let lines: Vec<String> = cleaned.lines().map(|s| s.to_string()).collect();
-    let blocks = extract_blocks_by_hooks(&lines);
-    let mut pairs: Vec<(String, String)> = Vec::new();
-    for blk in blocks { if let Some(p) = block_to_cmd_out(&blk) { pairs.push(p); } }
-    let pairs = filter_wtf_commands_inline(&pairs);
-    let len = pairs.len();
+
+    // Work per-line to keep raw/clean alignment
+    let raw_lines: Vec<&str> = raw.lines().collect();
+    let cleaned_lines: Vec<String> = raw_lines.iter().map(|l| clean_line(l)).collect();
+
+    // Find hook indices on cleaned lines
+    let ts = hook_regexes();
+    let mut idx: Vec<usize> = Vec::new();
+    for (i, ln) in cleaned_lines.iter().enumerate() { if ts.iter().any(|r| r.is_match(ln.as_str())) { idx.push(i); } }
+
+    let mut results: Vec<(String, String)> = Vec::new();
+    if idx.len() >= 2 {
+        let osc_title_re = Regex::new(r"\x1B\]([02]);([^\x07\x1B]*)(?:\x07|\x1B\\)").unwrap();
+        for w in idx.windows(2) {
+            let a = w[0];
+            let b = w[1];
+            let blk_clean: Vec<String> = cleaned_lines[a+1..b].to_vec();
+            let blk_raw = raw_lines[a+1..b].join("\n");
+
+            if let Some((mut cmd, mut out)) = block_to_cmd_out(&blk_clean) {
+                // Override using last OSC title and compute output strictly after it
+                let mut last_cap: Option<regex::Captures> = None;
+                for cap in osc_title_re.captures_iter(&blk_raw) { last_cap = Some(cap); }
+                if let Some(cap) = last_cap {
+                    let m0 = cap.get(0).unwrap();
+                    let end = m0.end();
+                    let title_txt = cap.get(2).map(|m| m.as_str()).unwrap_or("");
+                    let better = cmd_from_title(title_txt);
+                    if !better.is_empty() { cmd = better; }
+
+                    let raw_after = &blk_raw[end..];
+                    let out_lines: Vec<&str> = raw_after.lines().collect();
+                    let mut filtered: Vec<String> = Vec::new();
+                    for l in out_lines {
+                        let s = clean_line(l).trim().to_string();
+                        if s.is_empty() { continue; }
+                        if !cmd.is_empty() && (s == cmd || (s.len() < cmd.len() && cmd.starts_with(&s))) { continue; }
+                        filtered.push(s);
+                    }
+                    out = filtered.join("\n").trim().to_string();
+                }
+                results.push((cmd, out));
+            }
+        }
+    }
+
+    if results.is_empty() {
+        // Fallback to old path
+        let cleaned = clean_text(&raw);
+        let lines: Vec<String> = cleaned.lines().map(|s| s.to_string()).collect();
+        let blocks = extract_blocks_by_hooks(&lines);
+        for blk in blocks { if let Some(p) = block_to_cmd_out(&blk) { results.push(p); } }
+    }
+
+    let results = filter_wtf_commands_inline(&results);
+    let len = results.len();
     let start = len.saturating_sub(n);
-    Ok(pairs[start..].to_vec())
+    Ok(results[start..].to_vec())
+}
+
+fn cmd_from_title(title: &str) -> String {
+    // Extract command from title like "[host] cmd args [cwd]"
+    if title.is_empty() { return String::new(); }
+    let mut s = title.trim().to_string();
+    if let Some(caps) = Regex::new(r"^\[[^\]]*\][ \t]+(.*)$").unwrap().captures(&s) {
+        s = caps.get(1).unwrap().as_str().to_string();
+    }
+    let mut tokens: Vec<&str> = s.split_whitespace().collect();
+    if tokens.is_empty() { return String::new(); }
+    if let Some(last) = tokens.last() {
+        if *last == "~" || last.starts_with('/') || last.starts_with('~') { tokens.pop(); }
+    }
+    tokens.join(" ")
 }
 
 pub fn print_last_commands(n: usize) {
