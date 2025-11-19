@@ -7,18 +7,11 @@ Inspired by [nvbn/thefuck](https://github.com/nvbn/thefuck), Withefuck leverages
 - Advantage 1: No manual rule maintenance
 - Advantage 2: Uses multiple recent commands to infer your real intent
 
-Supports bash and zsh for now.
+Supports bash, zsh and fish for now.
 
 ## Quick Start
 
-```bash
-cd /opt
-git clone https://github.com/handsome-Druid/Withefuck.git
-cd Withefuck
-chmod +x ./install.sh
-./install.sh
-```
-
+Download the release and install.
 ## Usage
 
 ### Single-turn fix
@@ -27,12 +20,3 @@ chmod +x ./install.sh
 ### Multi-turn fix
 
 ![Iterative Fix](./docs/demo-iterative-fix.gif)
-
-## Upgrade
-
-~~~bash
-wtf --uninstall
-rm -rf /opt/Withefuck
-~~~
-
-Then git clone and install again.
